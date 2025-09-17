@@ -1,0 +1,14 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "c:\\users\\goseo\\desktop\\tpsmultiplaygame\\tpsmultiplaygame\\source\\tpsmultiplaygame\\tpsmultiplaygame.cpp",
+        "ProvidedModule": "",
+        "PCH": "c:\\users\\goseo\\desktop\\tpsmultiplaygame\\tpsmultiplaygame\\intermediate\\build\\win64\\x64\\tpsmultiplaygameeditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.valexpapi.cpp20.h.pch",
+        "Includes": [
+            "c:\\users\\goseo\\desktop\\tpsmultiplaygame\\tpsmultiplaygame\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\tpsmultiplaygame\\definitions.tpsmultiplaygame.h",
+            "c:\\users\\goseo\\desktop\\tpsmultiplaygame\\tpsmultiplaygame\\source\\tpsmultiplaygame\\tpsmultiplaygame.h"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}

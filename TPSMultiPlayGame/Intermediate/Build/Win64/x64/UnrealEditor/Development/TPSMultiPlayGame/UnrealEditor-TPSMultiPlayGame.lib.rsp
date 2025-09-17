@@ -1,0 +1,13 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UnrealEditor-TPSMultiPlayGame.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"C:/Users/goseo/Desktop/TPSMultiPlayGame/TPSMultiPlayGame/Intermediate/Build/Win64/x64/TPSMultiPlayGameEditor/Development/UnrealEd/SharedPCH.UnrealEd.Project.ValApi.ValExpApi.Cpp20.h.obj"
+"C:/Users/goseo/Desktop/TPSMultiPlayGame/TPSMultiPlayGame/Intermediate/Build/Win64/x64/UnrealEditor/Development/TPSMultiPlayGame/TPSMultiPlayGame.cpp.obj"
+"C:/Users/goseo/Desktop/TPSMultiPlayGame/TPSMultiPlayGame/Intermediate/Build/Win64/x64/UnrealEditor/Development/TPSMultiPlayGame/PerModuleInline.gen.cpp.obj"
+"C:/Users/goseo/Desktop/TPSMultiPlayGame/TPSMultiPlayGame/Intermediate/Build/Win64/x64/UnrealEditor/Development/TPSMultiPlayGame/Default.rc2.res"
+/OUT:"C:/Users/goseo/Desktop/TPSMultiPlayGame/TPSMultiPlayGame/Intermediate/Build/Win64/x64/UnrealEditor/Development/TPSMultiPlayGame/UnrealEditor-TPSMultiPlayGame.lib"

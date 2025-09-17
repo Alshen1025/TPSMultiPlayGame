@@ -1,0 +1,14 @@
+{
+	"Targets": [
+		{
+			"Name": "TPSMultiPlayGame",
+			"Path": "..\\Source\\TPSMultiPlayGame.Target.cs",
+			"Type": "Game"
+		},
+		{
+			"Name": "TPSMultiPlayGameEditor",
+			"Path": "..\\Source\\TPSMultiPlayGameEditor.Target.cs",
+			"Type": "Editor"
+		}
+	]
+}

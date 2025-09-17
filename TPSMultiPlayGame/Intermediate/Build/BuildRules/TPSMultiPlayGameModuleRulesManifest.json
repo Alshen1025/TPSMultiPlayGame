@@ -1,0 +1,9 @@
+{
+	"SourceFiles": [
+		"C:\\Users\\goseo\\Desktop\\TPSMultiPlayGame\\TPSMultiPlayGame\\Source\\TPSMultiPlayGame\\TPSMultiPlayGame.Build.cs",
+		"C:\\Users\\goseo\\Desktop\\TPSMultiPlayGame\\TPSMultiPlayGame\\Plugins\\MultiplayerSessions\\Source\\MultiplayerSessions\\MultiplayerSessions.Build.cs",
+		"C:\\Users\\goseo\\Desktop\\TPSMultiPlayGame\\TPSMultiPlayGame\\Source\\TPSMultiPlayGame.Target.cs",
+		"C:\\Users\\goseo\\Desktop\\TPSMultiPlayGame\\TPSMultiPlayGame\\Source\\TPSMultiPlayGameEditor.Target.cs"
+	],
+	"EngineVersion": "5.6.1"
+}
