@@ -32,6 +32,7 @@ ATPSCharacter::ATPSCharacter()
 	Combat = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 	Combat->SetIsReplicated(true);
 
+
 }
 
 void ATPSCharacter::BeginPlay()
@@ -55,9 +56,14 @@ void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 
 	PlayerInputComponent->BindAxis("MoveForward", this, &ATPSCharacter::MoveFoward);
 	PlayerInputComponent->BindAxis("MoveRight", this, &ATPSCharacter::MoveRight);
+
 	PlayerInputComponent->BindAxis("Turn", this, &ATPSCharacter::Turn);
 	PlayerInputComponent->BindAxis("LookUp", this, &ATPSCharacter::LookUp);
 
+	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ATPSCharacter::CrouchButtonPressed);
+	PlayerInputComponent->BindAction("Crouch", IE_Released, this, &ATPSCharacter::CrouchButtonReleased);
+	PlayerInputComponent->BindAction("Aim", IE_Pressed, this, &ATPSCharacter::AimButtonPressed);
+	PlayerInputComponent->BindAction("Aim", IE_Released, this, &ATPSCharacter::AimButtonReleased);
 }
 
 void ATPSCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -145,6 +151,19 @@ bool ATPSCharacter::IsWeaponEquipped()
 	return (Combat && Combat->EquippedWeapon);
 }
 
+bool ATPSCharacter::IsAiming()
+{
+	return (Combat && Combat->bAiming);
+}
+
+void ATPSCharacter::ServerEquipButtomPressed_Implementation()
+{
+	if (Combat)
+	{
+		Combat->EquipWeapon(OverlappingWeapon);
+	}
+}
+
 void ATPSCharacter::EquipButtonPressed()
 {
 	//무기 장착 버튼을 눌렀을 때 서버는 장비를 그냥 장착하고
@@ -162,12 +181,32 @@ void ATPSCharacter::EquipButtonPressed()
 	}
 }
 
-void ATPSCharacter::ServerEquipButtomPressed_Implementation()
+void ATPSCharacter::CrouchButtonPressed()
+{
+	Crouch();
+}
+
+void ATPSCharacter::CrouchButtonReleased()
+{
+	UnCrouch();
+}
+
+void ATPSCharacter::AimButtonPressed()
 {
 	if (Combat)
 	{
-		Combat->EquipWeapon(OverlappingWeapon);
+		Combat->SetAiming(true);
 	}
 }
+
+void ATPSCharacter::AimButtonReleased()
+{
+	if (Combat)
+	{
+		Combat->SetAiming(false);
+	}
+}
+
+
 
 

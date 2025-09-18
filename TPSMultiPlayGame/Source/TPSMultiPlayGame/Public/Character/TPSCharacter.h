@@ -28,6 +28,10 @@ protected:
 	void Turn(float Value);
 	void LookUp(float Value);
 	void EquipButtonPressed();
+	void CrouchButtonPressed();
+	void CrouchButtonReleased();
+	void AimButtonPressed();
+	void AimButtonReleased();
 
 
 private:
@@ -50,6 +54,7 @@ public:
 	void SetOverlappingWeapon(AWeapon* Weapon);
 
 	bool IsWeaponEquipped();
+	bool IsAiming();
 
 
 	//RepNotify : 변수가 복제될 때 알리는 것
