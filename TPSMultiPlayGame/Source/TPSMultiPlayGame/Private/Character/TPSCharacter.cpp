@@ -10,6 +10,7 @@
 #include "Net/UnrealNetwork.h"
 #include "TPSMultiPlayGame/TPSComponents/CombatComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Kismet/KismetMathLibrary.h"
 
 // Sets default values
 ATPSCharacter::ATPSCharacter()
@@ -36,7 +37,14 @@ ATPSCharacter::ATPSCharacter()
 	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
 	GetMesh()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+
+	TurningInPlace = ETurningInPlace::ETIP_NotTurning;
+
+	//업데이트 빈도
+	NetUpdateFrequency = 66.0f;
+	MinNetUpdateFrequency = 33.0f;
 }
+
 
 void ATPSCharacter::BeginPlay()
 {
@@ -47,7 +55,7 @@ void ATPSCharacter::BeginPlay()
 void ATPSCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	
+	AimOffset(DeltaTime);
 }
 
 void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -132,6 +140,25 @@ void ATPSCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
 	}
 }
 
+AWeapon* ATPSCharacter::GetEquippedWeapon()
+{
+	if(Combat == nullptr) return nullptr;
+	return Combat->EquippedWeapon;
+}
+
+//TODO : Turn관련 애니메이션 찾기
+void ATPSCharacter::TurnInPlace(float DeltaTime)
+{
+	if (AO_Yaw > 90.f)
+	{
+		TurningInPlace = ETurningInPlace::ETIP_Right;
+	}
+	else if (AO_Yaw < -90.f)
+	{
+		TurningInPlace = ETurningInPlace::ETIP_Left;
+	}
+}
+
 void ATPSCharacter::SetOverlappingWeapon(AWeapon* Weapon)
 {
 	if (OverlappingWeapon)
@@ -207,6 +234,38 @@ void ATPSCharacter::AimButtonReleased()
 	if (Combat)
 	{
 		Combat->SetAiming(false);
+	}
+}
+
+void ATPSCharacter::AimOffset(float DeltaTime)
+{
+	if (Combat && Combat->EquippedWeapon == nullptr) return;
+	//속도 계산
+	FVector Velocity = GetVelocity();
+	Velocity.Z = 0.0f;
+	float Speed = Velocity.Size();
+	bool bIsInAir = GetCharacterMovement()->IsFalling();
+	if (Speed == 0.0f && !bIsInAir) //Standing 상태이고 점프하고 있지 않을 때
+	{
+		FRotator CurrentAimRotation =  FRotator(0.f, GetBaseAimRotation().Yaw, 0.0f);
+		FRotator DeltaAimRotation = UKismetMathLibrary::NormalizedDeltaRotator(CurrentAimRotation, StartingAimRotation);
+		AO_Yaw = DeltaAimRotation.Yaw;
+		bUseControllerRotationYaw = false;
+
+	}
+	if (Speed > 0.f || bIsInAir) //running이거나 jump상태일때
+	{
+		StartingAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.0f);
+		AO_Yaw = 0.0;
+		bUseControllerRotationYaw = true;
+	}
+	AO_Pitch = GetBaseAimRotation().Pitch;
+	if (AO_Pitch > 90.0f && !IsLocallyControlled())
+	{
+		//pitch를 (270, 360)에서 (-90, 0)으로 매핑
+		FVector2D InRange(270.0f, 360.0f);
+		FVector2D OutRange(-90.0f, 0.0f);
+		AO_Pitch = FMath::GetMappedRangeValueClamped(InRange, OutRange, AO_Pitch);
 	}
 }
 

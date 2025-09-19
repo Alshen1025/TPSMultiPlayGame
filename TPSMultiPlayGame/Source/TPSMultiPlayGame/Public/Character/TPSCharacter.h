@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "TPSMultiPlayGame/TPSTypes/TruningInPlace.h"
 #include "TPSCharacter.generated.h"
 
 UCLASS()
@@ -33,6 +34,9 @@ protected:
 	void AimButtonPressed();
 	void AimButtonReleased();
 
+	//AimOffset관련 계산
+	void AimOffset(float DeltaTime);
+
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = Camera)
@@ -47,6 +51,20 @@ private:
 
 	UPROPERTY(VisibleAnywhere)
 	class UCombatComponent* Combat;
+
+	//AimOffset 관련 변수
+	float AO_Yaw;
+	float AO_Pitch;
+	FRotator StartingAimRotation;
+
+	ETurningInPlace TurningInPlace;
+	void TurnInPlace(float DeltaTime);
+
+public:
+	FORCEINLINE float GetAO_Yaw() const { return AO_Yaw;  }
+	FORCEINLINE float GetAO_Pitch() const { return AO_Pitch; }
+	AWeapon* GetEquippedWeapon();
+	FORCEINLINE ETurningInPlace GetTurningInPlace() const { return TurningInPlace; }
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAceess = "true"))
 	class UWidgetComponent* OverheadWidget;

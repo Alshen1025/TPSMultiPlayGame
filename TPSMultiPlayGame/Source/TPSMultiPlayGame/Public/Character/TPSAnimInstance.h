@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "TPSMultiPlayGame/TPSTypes/TruningInPlace.h"
 #include "TPSAnimInstance.generated.h"
 
 /**
@@ -37,6 +38,8 @@ private:
 	UPROPERTY(BlueprintReadOnly, Category = movement, meta = (AllowPrivateAccess = "true"))
 	bool bWeaponEquiped;
 
+	class AWeapon* EquippedWeapon;
+
 	UPROPERTY(BlueprintReadOnly, Category = movement, meta = (AllowPrivateAccess = "true"))
 	bool bIsCrouched;
 
@@ -52,6 +55,24 @@ private:
 	FRotator CharacterRotationLastFrame;
 	FRotator CharacterRotation;
 	FRotator DeltaRotation;
+
+
+
+	//AImOffset
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	float AO_Yaw;
+
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	float AO_Pitch;
+
+	//FABRIK IK
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	FTransform LeftHandTransform;
+
+	UPROPERTY(BlueprintReadOnly, Category = Movement, meta = (AllowPrivateAccess = "true"))
+	ETurningInPlace TurningInPlace;
+
+
 };
 
 
