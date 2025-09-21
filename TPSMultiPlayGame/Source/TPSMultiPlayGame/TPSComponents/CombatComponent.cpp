@@ -8,6 +8,8 @@
 #include "Net/UnrealNetwork.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/SphereComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "DrawDebugHelpers.h"
 // Sets default values for this component's properties
 UCombatComponent::UCombatComponent()
 {
@@ -57,6 +59,8 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	FHitResult HitResult;
+	TraceUnderCrosshairs(HitResult);
 }
 
 
@@ -102,7 +106,7 @@ void UCombatComponent::MulticastFire_Implementation()
 	if (Character)
 	{
 		Character->PlayFireMontage(bAiming);
-		EquippedWeapon->Fire();
+		EquippedWeapon->Fire(HitTarget);
 	}
 }
 void UCombatComponent::ServerFire_Implementation()
@@ -110,5 +114,59 @@ void UCombatComponent::ServerFire_Implementation()
 	MulticastFire();
 }
 
+//피격 판정 관련
+void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
+{
+	//조준점(화면 중앙)에서 RayTrace로 조준점에 맞았는지 판정(임시)
+	FVector2D ViewportSize;
+	if (GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->GetViewportSize(ViewportSize);
+	}
+	FVector2D CrosshairLocation(ViewportSize.X / 2.f, ViewportSize.Y / 2.);
+
+	//십자선의 위치와 방향
+	FVector CrosshairWorldPosition;
+	FVector CrosshairWorldDirection;
+	bool bScreenToWorld = UGameplayStatics::DeprojectScreenToWorld
+	(
+		UGameplayStatics::GetPlayerController(this, 0),
+		CrosshairLocation,
+		CrosshairWorldPosition,
+		CrosshairWorldDirection
+	);
+	if (bScreenToWorld)
+	{
+		FVector Start = CrosshairWorldPosition;
+		FVector End = Start + CrosshairWorldDirection * TRACE_LENGTH;
+		GetWorld()->LineTraceSingleByChannel
+		(
+			TraceHitResult,
+			Start,
+			End,
+			ECollisionChannel::ECC_Visibility
+		);
+		if (!TraceHitResult.bBlockingHit)
+		{
+			TraceHitResult.ImpactPoint = End;
+			HitTarget = End;
+		}
+		else
+		{
+			HitTarget = TraceHitResult.ImpactPoint;
+			DrawDebugSphere
+			(
+				GetWorld(),
+				TraceHitResult.ImpactPoint,
+				12.f,
+				12,
+				FColor::Red
+			);
+		}
+	}
+
+
+
+}
 
 
