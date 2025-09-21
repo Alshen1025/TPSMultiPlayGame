@@ -11,6 +11,7 @@
 #include "TPSMultiPlayGame/TPSComponents/CombatComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Character/TPSAnimInstance.h"
 
 // Sets default values
 ATPSCharacter::ATPSCharacter()
@@ -98,6 +99,19 @@ void ATPSCharacter::PostInitializeComponents()
 	if (Combat)
 	{
 		Combat->Character = this;
+	}
+}
+
+void ATPSCharacter::PlayFireMontage(bool bAiming)
+{
+	if (Combat == nullptr || Combat->EquippedWeapon == nullptr) return;
+	UAnimInstance* AnimInstace = GetMesh()->GetAnimInstance();
+	if (AnimInstace && FireWeaponMontage)
+	{
+		AnimInstace->Montage_Play(FireWeaponMontage);
+		FName SectionName;
+		SectionName = bAiming ? FName("RifleAim") : FName("RifleHip");
+		AnimInstace->Montage_JumpToSection(SectionName);
 	}
 }
 

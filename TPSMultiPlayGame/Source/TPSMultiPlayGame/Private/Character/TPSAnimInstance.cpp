@@ -63,7 +63,7 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 
 		FVector OutPosition;
 		FRotator OutRotation;
-		TPSCharacter->GetMesh()->TransformFromBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
+		TPSCharacter->GetMesh()->TransformToBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
 		LeftHandTransform.SetLocation(OutPosition);
 		LeftHandTransform.SetRotation(FQuat(OutRotation));
 	}
