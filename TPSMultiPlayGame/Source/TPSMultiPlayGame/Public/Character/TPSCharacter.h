@@ -33,6 +33,8 @@ protected:
 	void CrouchButtonReleased();
 	void AimButtonPressed();
 	void AimButtonReleased();
+	void FireButtonPressed();
+	void FireButtonReleased();
 
 	//AimOffset관련 계산
 	void AimOffset(float DeltaTime);
@@ -59,6 +61,9 @@ private:
 
 	ETurningInPlace TurningInPlace;
 	void TurnInPlace(float DeltaTime);
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	class UAnimMontage* FireWeaponMontage;
 
 public:
 	FORCEINLINE float GetAO_Yaw() const { return AO_Yaw;  }
