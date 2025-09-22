@@ -62,7 +62,13 @@ private:
 	UPROPERTY(EditAnywhere)
 	TSubclassOf<class ACasing> CasingClass;
 
-
+	//ÁÜ °ü·Ã º¯¼ö
+	//ÁÜ FOV
+	UPROPERTY(EditAnywhere)
+	float ZoomFOV = 30.f;
+	//ÁÜ ¼Óµµ
+	UPROPERTY(EditAnywhere)
+	float ZoominterpSpeed = 20.f;
 	
 
 public:	
@@ -82,10 +88,21 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Crosshairs)
 	UTexture2D* CrosshairsBottom;
-
+	
 	virtual void Tick(float DeltaTime) override;
 	void SetWeaponState(EWeaponState State);
 	FORCEINLINE USphereComponent* GetAreaSphere() const { return AreaSphere; }
 	FORCEINLINE USkeletalMeshComponent* GetWeaponMesh() const { return WeaponMesh; }
+
+	FORCEINLINE float GetZoomInterpSpeed() const { return ZoominterpSpeed; }
+
+	FORCEINLINE float GetZoomedFOV() const { return ZoomFOV; }
+
+	//¿¬»ç ±â´É
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float FireDelay = .15f;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	bool bAutomatic = true;
 
 };

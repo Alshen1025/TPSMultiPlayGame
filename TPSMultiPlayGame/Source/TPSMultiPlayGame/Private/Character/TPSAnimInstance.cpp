@@ -35,6 +35,7 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	bIsCrouched = TPSCharacter->bIsCrouched;
 	bIsAiming = TPSCharacter->IsAiming();
 	TurningInPlace = TPSCharacter->GetTurningInPlace();
+	bRotateRootBone = TPSCharacter->ShouldRotateRootBone();
 
 	// Offset Yaw for Strafing
 	FRotator AimRotation = TPSCharacter->GetBaseAimRotation();
@@ -42,6 +43,7 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	FRotator DeltaRot = UKismetMathLibrary::NormalizedDeltaRotator(MovementRotation, AimRotation);
 	DeltaRotation = FMath::RInterpTo(DeltaRotation, DeltaRot, DeltaTime, 6.f);
 	YawOffset = DeltaRotation.Yaw;
+
 	CharacterRotationLastFrame = CharacterRotation;
 	CharacterRotation = TPSCharacter->GetActorRotation();
 	const FRotator Delta = UKismetMathLibrary::NormalizedDeltaRotator(CharacterRotation, CharacterRotationLastFrame);
@@ -60,6 +62,17 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	{
 		LeftHandTransform = EquippedWeapon->GetWeaponMesh()->GetSocketTransform(FName("LeftHandSocket"), ERelativeTransformSpace::RTS_World);
 		DrawDebugSphere(GetWorld(), LeftHandTransform.GetLocation(), 10.f, 12, FColor::Green, false, -1, 0, 1.f);
+
+		//무기 관련 로테이션
+		//조준하는 방향과 총구 일치하게
+		if (TPSCharacter->IsLocallyControlled())
+		{
+			bLocallyControlled = true;
+			FTransform RightHandTransform = TPSCharacter->GetMesh()->GetSocketTransform(FName("Hand_R"), ERelativeTransformSpace::RTS_World);
+			FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(RightHandTransform.GetLocation(), RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - TPSCharacter->GetHitTarget()));
+			RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 30.f);
+		}
+		
 
 		FVector OutPosition;
 		FRotator OutRotation;

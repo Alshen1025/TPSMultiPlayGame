@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "TPSMultiPlayGame/HUD/TPSHUD.h"
 #include "CombatComponent.generated.h"
 #define TRACE_LENGTH 80000.f;
 
@@ -69,13 +70,37 @@ private:
 
 	bool bFireButtonPressed;
 
-	FVector HitTarget;
-
 	//CrossHair 관련 변수
 	float CrosshairVelocityFactor;
 	float CrosshairInAirFactor;
+	float CrosshairShootingFactor;
+	float CrosshairAimFactor;
+	FHUDPackage HUDPackage;
 
-public:	
+	//무기 회전
+	FVector HitTarget;
+
+	//줌
+	//기본 값
+	float DefaultFOV;
+	//확대시
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float ZoomedFOV = 30.f;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	float ZoomInterpSpeed = 20.f;
+
+	float CurrentFOV;
+
+	void InterpFOV(float DeltaTime);
+
+	//연사기능
+	FTimerHandle FireTimer;
+	bool bCanFire = true;
+	void StartFireTimer();
+	void FireTimerFinished();
+	void Fire();
+
 	
 
 		

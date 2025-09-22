@@ -5,10 +5,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
 #include "TPSMultiPlayGame/TPSTypes/TruningInPlace.h"
+#include "TPSMultiPlayGame/Interfaces/InteractWithCrosshairsInterface.h"
 #include "TPSCharacter.generated.h"
 
 UCLASS()
-class TPSMULTIPLAYGAME_API ATPSCharacter : public ACharacter
+class TPSMULTIPLAYGAME_API ATPSCharacter : public ACharacter, public IInteractWithCrosshairsInterface
 {
 	GENERATED_BODY()
 
@@ -18,8 +19,13 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	virtual void OnRep_ReplicatedMovement() override;
 	virtual void PostInitializeComponents() override;
+
+	//애니메이션 몽타주 재생
 	void PlayFireMontage(bool bAiming);
+	void PlayHitReactMontage();
 
 protected:
 	virtual void BeginPlay() override;
@@ -40,8 +46,20 @@ protected:
 	//AimOffset관련 계산
 	void AimOffset(float DeltaTime);
 
+	//Proxy관련
+	void SimProxiesTurn();
+	void CalculateAO_Pitch();
 
 private:
+	bool bRotateRootBone;
+	float TurnThreshold = 0.5f;
+	FRotator ProxyRotationLastFrame;
+	FRotator ProxyRotation;
+	float ProxyYaw;
+	float TimeSinceLastMovementReplication;
+	float CalculateSpeed();
+
+	//
 	UPROPERTY(VisibleAnywhere, Category = Camera)
 	class USpringArmComponent* CameraBoom;
 
@@ -57,20 +75,53 @@ private:
 
 	//AimOffset 관련 변수
 	float AO_Yaw;
+	float InterpAO_Yaw;
 	float AO_Pitch;
 	FRotator StartingAimRotation;
 
 	ETurningInPlace TurningInPlace;
 	void TurnInPlace(float DeltaTime);
 
+
+
+
+//애니메이션 몽타주
+private:
+
 	UPROPERTY(EditAnywhere, Category = Combat)
 	class UAnimMontage* FireWeaponMontage;
 
+	UPROPERTY(EditAnywhere, Category = Combat)
+	class UAnimMontage* HitReactMontage;
+
 public:
+	UFUNCTION(NetMulticast, Unreliable)
+	void MulticastHit();
+
+//
+
+public:
+	//Getter, Setter
 	FORCEINLINE float GetAO_Yaw() const { return AO_Yaw;  }
 	FORCEINLINE float GetAO_Pitch() const { return AO_Pitch; }
-	AWeapon* GetEquippedWeapon();
+
 	FORCEINLINE ETurningInPlace GetTurningInPlace() const { return TurningInPlace; }
+
+	FORCEINLINE UCameraComponent* GetFollowCamera() const { return FollowCamera; }
+
+	FORCEINLINE bool ShouldRotateRootBone() const { return bRotateRootBone; }
+
+	AWeapon* GetEquippedWeapon();
+	FVector GetHitTarget() const;
+	
+	//
+
+	//
+	void HideCameraIfCharacterClose();
+	UPROPERTY(EditAnywhere )
+	float CameraThreshold = 200.f;
+	//
+
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAceess = "true"))
 	class UWidgetComponent* OverheadWidget;
@@ -92,5 +143,8 @@ public:
 	//Unreliable -> 빠르지만 도착 보장 X, 최신 상태 중요할 때만 사용(플레이어의 위치, 회전같이 자주 바뀌는 정보)
 	UFUNCTION(Server, Reliable)
 	void ServerEquipButtomPressed();
+
+	//캐릭터에 부착된 카메라 Return()
+	
 
 };
