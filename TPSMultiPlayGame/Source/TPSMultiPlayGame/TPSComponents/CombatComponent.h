@@ -48,8 +48,12 @@ protected:
 	//피격 관련
 	void TraceUnderCrosshairs(FHitResult& TraceHitResult);
 
+	void SetHUDCrosshairs(float Deltatime);
+
 private:
 	ATPSCharacter* Character;
+	class ATPSPlayerController* Controller;
+	class ATPSHUD* HUD;
 
 	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon)
 	AWeapon* EquippedWeapon;
@@ -66,6 +70,10 @@ private:
 	bool bFireButtonPressed;
 
 	FVector HitTarget;
+
+	//CrossHair 관련 변수
+	float CrosshairVelocityFactor;
+	float CrosshairInAirFactor;
 
 public:	
 	
