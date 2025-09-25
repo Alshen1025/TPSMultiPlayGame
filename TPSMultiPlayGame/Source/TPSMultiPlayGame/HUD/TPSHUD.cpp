@@ -2,6 +2,26 @@
 
 
 #include "TPSHUD.h"
+#include "GameFramework/PlayerController.h"
+#include "CharacterOverlay.h"
+
+
+
+void ATPSHUD::BeginPlay()
+{
+	Super::BeginPlay();
+	AddCharacterOverlay();
+}
+
+void ATPSHUD::AddCharacterOverlay()
+{
+	APlayerController* PlayerContraller = GetOwningPlayerController();
+	if (PlayerContraller && CharacterOverlayClass)
+	{
+		CharacterOverlay = CreateWidget<UCharacterOverlay>(PlayerContraller, CharacterOverlayClass);
+		CharacterOverlay->AddToViewport();
+	}
+}
 
 void ATPSHUD::DrawHUD()
 {
@@ -40,6 +60,8 @@ void ATPSHUD::DrawHUD()
 		}
 	}
 }
+
+
 
 void ATPSHUD::DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread, FLinearColor CrosshairsColor)
 {

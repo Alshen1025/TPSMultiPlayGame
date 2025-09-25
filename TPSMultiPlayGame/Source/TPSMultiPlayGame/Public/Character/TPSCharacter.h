@@ -6,6 +6,7 @@
 #include "GameFramework/Character.h"
 #include "TPSMultiPlayGame/TPSTypes/TruningInPlace.h"
 #include "TPSMultiPlayGame/Interfaces/InteractWithCrosshairsInterface.h"
+#include "TPSMultiPlayGame/TPSTypes/Combatstate.h"
 #include "TPSCharacter.generated.h"
 
 UCLASS()
@@ -27,7 +28,12 @@ public:
 	void PlayFireMontage(bool bAiming);
 	void PlayHitReactMontage();
 
+	void PlayReloadMontage();
+	void PlayDeathMontage();
+
 protected:
+	//관련 클래스 확인 후 HUD 초기화
+	void PoolInit();
 	virtual void BeginPlay() override;
 
 	//Action, Axis 콜백
@@ -41,6 +47,8 @@ protected:
 	void AimButtonPressed();
 	void AimButtonReleased();
 	void FireButtonPressed();
+
+	void ReloadButtonPressed();
 	void FireButtonReleased();
 
 	//AimOffset관련 계산
@@ -49,6 +57,29 @@ protected:
 	//Proxy관련
 	void SimProxiesTurn();
 	void CalculateAO_Pitch();
+
+/// <summary>
+///  플레이어 HP
+/// </summary>
+	
+	UPROPERTY(EditAnywhere, Category = "PlayerStats")
+	float MaxHealth = 100.f;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Health, VisibleAnywhere, Category = "PlayerStats")
+	float Health = 100.f;
+	UFUNCTION()
+	void OnRep_Health();
+	UFUNCTION()
+	void ReciveDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, class AController* InstigatorController, AActor* DamageCauser);
+	void UpdateHUDHealth();
+
+	UPROPERTY()
+	class ATPSPlayerController* TPSPlayerController;
+
+	bool bEliminated = false;
+
+
+
 
 private:
 	bool bRotateRootBone;
@@ -70,7 +101,7 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UCombatComponent* Combat;
 
 	//AimOffset 관련 변수
@@ -92,11 +123,15 @@ private:
 	class UAnimMontage* FireWeaponMontage;
 
 	UPROPERTY(EditAnywhere, Category = Combat)
-	class UAnimMontage* HitReactMontage;
+	UAnimMontage* HitReactMontage;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	UAnimMontage* DeathMontage;
+
+	UPROPERTY(EditAnywhere, Category = Combat)
+	UAnimMontage* ReloadMontage;
 
 public:
-	UFUNCTION(NetMulticast, Unreliable)
-	void MulticastHit();
 
 //
 
@@ -111,6 +146,13 @@ public:
 
 	FORCEINLINE bool ShouldRotateRootBone() const { return bRotateRootBone; }
 
+	FORCEINLINE bool GetIsEliminated() const { return bEliminated;  }
+
+	FORCEINLINE float GetHealth() const { return Health; }
+	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
+	ECombatState GetCombatState() const;
+
+ 
 	AWeapon* GetEquippedWeapon();
 	FVector GetHitTarget() const;
 	
@@ -122,7 +164,17 @@ public:
 	float CameraThreshold = 200.f;
 	//
 
+
+	//플레이어 제거(사망)
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastEliminated();
+
+	void Eliminated();
+
 public:
+	UPROPERTY()
+	class ATPSPlayerState* TPSPlayerState;
+
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAceess = "true"))
 	class UWidgetComponent* OverheadWidget;
 
@@ -144,7 +196,18 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerEquipButtomPressed();
 
-	//캐릭터에 부착된 카메라 Return()
+
 	
+
+	//플레이어 리스폰 관련
+
+	private:
+
+		FTimerHandle ElimTimer;
+
+		UPROPERTY(EditDefaultsOnly)
+		float ElimDelay = 3.f;
+
+		void ElimTimerFinishied();
 
 };

@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "TPSMultiPlayGame/Weapon/Weapontypes.h"
 #include "TPSMultiPlayGame/HUD/TPSHUD.h"
+#include "TPSMultiPlayGame/TPSTypes/Combatstate.h"
 #include "CombatComponent.generated.h"
 #define TRACE_LENGTH 80000.f;
 
@@ -20,7 +22,10 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	friend class ATPSCharacter;
 
+	//무기 장착
 	void EquipWeapon(AWeapon* WeaponToEquip);
+
+	
 
 	friend class ATPSCharacter;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
@@ -50,6 +55,17 @@ protected:
 	void TraceUnderCrosshairs(FHitResult& TraceHitResult);
 
 	void SetHUDCrosshairs(float Deltatime);
+
+	//재장전
+	UFUNCTION(Server, Reliable)
+	void SeverReload();
+	UFUNCTION(BlueprintCallable)
+	void FinishReload();
+	void Reload();
+	void HandleReload();
+
+	int32 AmountToReload();
+
 
 private:
 	ATPSCharacter* Character;
@@ -101,7 +117,30 @@ private:
 	void FireTimerFinished();
 	void Fire();
 
-	
+	bool CanFire();
 
+	UPROPERTY(ReplicatedUsing = OnRep_CarriedAmmo)
+	int32 CarriedAmmo;
+
+	UFUNCTION()
+	void OnRep_CarriedAmmo();
+
+	//어떤 무기타입의 탄약을 얼마만큼 가지고 있나.
+	TMap<EWeaponType, int32> CarriedAmmoMap;
+
+	UPROPERTY(EditAnywhere)
+	int32 StartingARAmmo = 30;
+
+	void InitalizeCarriedAmmo();
+
+	UPROPERTY(Replicated = OnRep_CombatState)
+	ECombatState CombatState = ECombatState::ECS_Unoccupied;
+
+	UFUNCTION()
+	void OnRep_CombatState();
+
+	void UpdateAmmoValues();
+
+	public:
 		
 };

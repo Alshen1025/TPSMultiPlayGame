@@ -13,6 +13,11 @@
 #include "Kismet/KismetMathLibrary.h"
 #include "Character/TPSAnimInstance.h"
 #include "TPSMultiPlayGame/TPSMultiPlayGame.h"
+#include "TPSMultiPlayGame/PlayerController/TPSPlayerController.h"
+#include "TPSMultiPlayGame/GameMode/TPSGameMode.h"
+#include "TimerManager.h"
+#include "TPSMultiPlayGame/PlayerState/TPSPlayerState.h"
+#include "TPSMultiPlayGame/Weapon/WeaponTypes.h"
 
 // Sets default values
 ATPSCharacter::ATPSCharacter()
@@ -79,10 +84,35 @@ void ATPSCharacter::HideCameraIfCharacterClose()
 	}
 }
 
+void ATPSCharacter::PoolInit()
+{
+	if (TPSPlayerState == nullptr)
+	{
+		TPSPlayerState = GetPlayerState<ATPSPlayerState>();
+		if (TPSPlayerState)
+		{
+			TPSPlayerState->AddToScore(0.f);
+			TPSPlayerState->AddToDefeats(0);
+		}
+	}
+}
+
 void ATPSCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
 	
+	TPSPlayerController = Cast<ATPSPlayerController>(Controller);
+	if (TPSPlayerController)
+	{
+		TPSPlayerController->SetHUDHealth(Health, MaxHealth);
+	}
+
+	if (HasAuthority())
+	{
+		//Damage입었을 때 호출할 함수 델리게이트에 연결
+		OnTakeAnyDamage.AddDynamic(this, &ATPSCharacter::ReciveDamage);
+	}
 }
 
 void ATPSCharacter::Tick(float DeltaTime)
@@ -102,6 +132,7 @@ void ATPSCharacter::Tick(float DeltaTime)
 		CalculateAO_Pitch();
 	}
 	HideCameraIfCharacterClose();
+	PoolInit();
 }
 
 void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -122,8 +153,12 @@ void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	PlayerInputComponent->BindAction("Aim", IE_Pressed, this, &ATPSCharacter::AimButtonPressed);
 	PlayerInputComponent->BindAction("Aim", IE_Released, this, &ATPSCharacter::AimButtonReleased);
 
+	//발사
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ATPSCharacter::FireButtonPressed);
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ATPSCharacter::FireButtonReleased);
+
+	//장전
+	PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &ATPSCharacter::ReloadButtonPressed);
 }
 
 void ATPSCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -136,6 +171,7 @@ void ATPSCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 
 	//무기에 Overlapping된 클라이언트와 서버에만 복제
 	DOREPLIFETIME_CONDITION(ATPSCharacter, OverlappingWeapon, COND_OwnerOnly);
+	DOREPLIFETIME(ATPSCharacter, Health);
 }
 
 void ATPSCharacter::PostInitializeComponents()
@@ -174,10 +210,7 @@ void ATPSCharacter::PlayHitReactMontage()
 
 }
 
-void ATPSCharacter::MulticastHit_Implementation()
-{
-	PlayHitReactMontage();
-}
+
 
 ///
 
@@ -241,6 +274,8 @@ void ATPSCharacter::EquipButtonPressed()
 	}
 }
 
+
+
 AWeapon* ATPSCharacter::GetEquippedWeapon()
 {
 	if(Combat == nullptr) return nullptr;
@@ -254,6 +289,26 @@ void ATPSCharacter::ServerEquipButtomPressed_Implementation()
 		Combat->EquipWeapon(OverlappingWeapon);
 	}
 }
+//재장전 애니메이션
+void ATPSCharacter::PlayReloadMontage()
+{
+	UAnimInstance* AnimInstace = GetMesh()->GetAnimInstance();
+	if (AnimInstace && ReloadMontage)
+	{
+		AnimInstace->Montage_Play(ReloadMontage);
+		//장착된 무기에 따라 재생되는 모션 다르게
+		FName SectionName;
+		switch (Combat->EquippedWeapon->GetWeaponType())
+		{
+		case EWeaponType::EWT_AssaultRifle:
+			SectionName = FName("Rifle");
+			break;
+		}
+		AnimInstace->Montage_JumpToSection(SectionName);
+	}
+}
+
+
 
 void ATPSCharacter::SetOverlappingWeapon(AWeapon* Weapon)
 {
@@ -279,8 +334,6 @@ bool ATPSCharacter::IsWeaponEquipped()
 
 
 //////
-
-//TODO : Turn관련 애니메이션 찾기
 void ATPSCharacter::TurnInPlace(float DeltaTime)
 {
 	if (AO_Yaw > 90.f)
@@ -302,11 +355,12 @@ void ATPSCharacter::TurnInPlace(float DeltaTime)
 		}
 	}
 }
-
 bool ATPSCharacter::IsAiming()
 {
 	return (Combat && Combat->bAiming);
 }
+
+//전투 관련 입력 콜백
 
 void ATPSCharacter::CrouchButtonPressed()
 {
@@ -336,16 +390,24 @@ void ATPSCharacter::AimButtonReleased()
 
 void ATPSCharacter::FireButtonPressed()
 {
-	UE_LOG(LogTemp, Warning, TEXT("FireButtonPressed Called!"));
-	if (Combat)
+	
+	if (Combat && Combat->EquippedWeapon)
 	{
 		Combat->FireButtonPressed(true);
 	}
 }
 
-void ATPSCharacter::FireButtonReleased()
+void ATPSCharacter::ReloadButtonPressed()
 {
 	if (Combat)
+	{
+		Combat->Reload();
+	}
+}
+
+void ATPSCharacter::FireButtonReleased()
+{
+	if (Combat && Combat->EquippedWeapon)
 	{
 		Combat->FireButtonPressed(false);
 	}
@@ -445,7 +507,108 @@ void ATPSCharacter::CalculateAO_Pitch()
 	}
 }
 
+//플레이어 HP
+void ATPSCharacter::OnRep_Health()
+{
+	UpdateHUDHealth();
+	if (!bEliminated)
+	{
+		PlayHitReactMontage();
+	}
+	
+}
+
+void ATPSCharacter::ReciveDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
+{
+	Health = FMath::Clamp(Health - Damage, 0.f, MaxHealth);
+	if(Health > 0.f)
+	{
+		PlayHitReactMontage();	
+	}
+	if (Health <= 0.f)
+	{
+		ATPSGameMode* TPSGameMode = GetWorld()->GetAuthGameMode<ATPSGameMode>();
+		if (TPSGameMode)
+		{
+			TPSPlayerController = TPSPlayerController == nullptr ? Cast<ATPSPlayerController>(Controller) : TPSPlayerController;
+			ATPSPlayerController* AttackerController = Cast<ATPSPlayerController>(InstigatorController);
+			TPSGameMode->EliminatePlayer(this, TPSPlayerController, AttackerController);
+		}
+	}
+	UpdateHUDHealth();
+	
+}
+
+void ATPSCharacter::UpdateHUDHealth()
+{
+	TPSPlayerController = TPSPlayerController == nullptr ? Cast<ATPSPlayerController>(Controller) : TPSPlayerController;
+	if (TPSPlayerController)
+	{
+		TPSPlayerController->SetHUDHealth(Health, MaxHealth);
+	}
+}
 
 
 
+//플레이어 제거(사망), 리스폰
+void ATPSCharacter::MulticastEliminated_Implementation()
+{
+	if (TPSPlayerController)
+	{
+		TPSPlayerController->SetHUDWeaponAmmo(0);
+	}
+	bEliminated = true;
+	PlayDeathMontage();
 
+	//플레이어 움직임 비활성화
+	GetCharacterMovement()->DisableMovement();
+	GetCharacterMovement()->StopMovementImmediately();
+	if (TPSPlayerController)
+	{
+		DisableInput(TPSPlayerController);
+	}
+	//충돌 무효화
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+
+void ATPSCharacter::PlayDeathMontage()
+{
+	UAnimInstance* AnimInstace = GetMesh()->GetAnimInstance();
+	if (AnimInstace && DeathMontage)
+	{
+		AnimInstace->Montage_Play(DeathMontage);
+	}
+}
+void ATPSCharacter::Eliminated()
+{
+	if (Combat && Combat->EquippedWeapon)
+	{
+		Combat->EquippedWeapon->Dropped();
+	}
+	MulticastEliminated();
+	GetWorldTimerManager().SetTimer
+	(
+		ElimTimer,
+		this,
+		&ATPSCharacter::ElimTimerFinishied,
+		ElimDelay
+	);
+}
+
+void ATPSCharacter::ElimTimerFinishied()
+{
+	ATPSGameMode* TPSGameMode = GetWorld()->GetAuthGameMode<ATPSGameMode>();
+	if (TPSGameMode)
+	{
+		TPSGameMode->RequestRespawn(this, Controller);
+	}
+}
+
+
+//전투  상태 리턴
+ECombatState ATPSCharacter::GetCombatState() const
+{
+	if (Combat == nullptr) return ECombatState::ECS_MAX;
+	return Combat->CombatState;
+}

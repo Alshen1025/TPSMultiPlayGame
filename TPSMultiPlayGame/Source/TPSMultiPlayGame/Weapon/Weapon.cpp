@@ -6,6 +6,7 @@
 #include "Components/WidgetComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Character/TPSCharacter.h"
+#include "TPSMultiPlayGame/PlayerController/TPSPlayerController.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimationAsset.h"
 #include "Casing.h"
@@ -65,7 +66,9 @@ void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AWeapon, WeaponState);
+	DOREPLIFETIME(AWeapon, Ammo);
 }
+
 
 void AWeapon::Fire(const FVector& HitTarget)
 {
@@ -91,8 +94,8 @@ void AWeapon::Fire(const FVector& HitTarget)
 			}
 		}
 	}
+	SpendRound();
 }
-
 
 
 void AWeapon::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -114,6 +117,31 @@ void AWeapon::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActo
 	}
 }
 
+void AWeapon::SetWeaponState(EWeaponState State)
+{
+	WeaponState = State;
+	switch (WeaponState)
+	{
+	case EWeaponState::EWS_Equipped:
+		ShowPickupWidget(false);
+		AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WeaponMesh->SetSimulatePhysics(false);
+		WeaponMesh->SetEnableGravity(false);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		break;
+
+	case EWeaponState::EWS_Dropped:
+		if (HasAuthority())
+		{
+			AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		}
+		WeaponMesh->SetSimulatePhysics(true);
+		WeaponMesh->SetEnableGravity(true);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+
+}
+
 void AWeapon::OnRep_WeaponState()
 {
 	switch (WeaponState)
@@ -123,8 +151,14 @@ void AWeapon::OnRep_WeaponState()
 	case EWeaponState::EWS_Equipped:
 		ShowPickupWidget(false);
 		AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WeaponMesh->SetSimulatePhysics(false);
+		WeaponMesh->SetEnableGravity(false);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		break;
 	case EWeaponState::EWS_Dropped:
+		WeaponMesh->SetSimulatePhysics(true);
+		WeaponMesh->SetEnableGravity(true);
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		break;
 	case EWeaponState::EWS_MAX:
 		break;
@@ -133,6 +167,61 @@ void AWeapon::OnRep_WeaponState()
 	}
 }
 
+//총기 탄약 소모
+void AWeapon::OnRep_Ammo()
+{
+	SetHUDAmmo();
+}
+
+//무기 장착시(Owner가 설정되면) 탄약 관련 처리
+void AWeapon::OnRep_Owner()
+{
+	Super::OnRep_Owner();
+	if (Owner == nullptr)
+	{
+		TPSOwnerCharacter = nullptr;
+		TPSOwnerController = nullptr;
+	}
+	else
+	{
+		SetHUDAmmo();
+	}
+	
+}
+
+
+void AWeapon::SpendRound()
+{
+	Ammo = FMath::Clamp(Ammo - 1, 0, MagCapacity);
+	SetHUDAmmo();
+}
+
+void AWeapon::AddAmmo(int32 AmmoToAdd)
+{
+	Ammo = FMath::Clamp(Ammo - AmmoToAdd, 0, MagCapacity);
+	SetHUDAmmo();
+}
+
+void AWeapon::SetHUDAmmo()
+{
+	TPSOwnerCharacter = TPSOwnerCharacter == nullptr ? Cast<ATPSCharacter>(GetOwner()) : TPSOwnerCharacter;
+	if (TPSOwnerCharacter)
+	{
+		TPSOwnerController = TPSOwnerController == nullptr ? Cast<ATPSPlayerController>(TPSOwnerCharacter->Controller) : TPSOwnerController;
+		if (TPSOwnerController)
+		{
+			TPSOwnerController->SetHUDWeaponAmmo(Ammo);
+		}
+	}
+}
+
+bool AWeapon::IsEmpty()
+{
+	return Ammo <= 0;
+}
+
+//
+
 // Called every frame
 void AWeapon::Tick(float DeltaTime)
 {
@@ -140,16 +229,16 @@ void AWeapon::Tick(float DeltaTime)
 
 }
 
-void AWeapon::SetWeaponState(EWeaponState State)
+
+
+//무기 드랍
+void AWeapon::Dropped()
 {
-	WeaponState = State;
-	switch (WeaponState)
-	{
-	case EWeaponState::EWS_Equipped:
-		ShowPickupWidget(false);
-		AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		break;
-	}
-	
+	SetWeaponState(EWeaponState::EWS_Dropped);
+	FDetachmentTransformRules DetachRules(EDetachmentRule::KeepWorld, true);
+	WeaponMesh->DetachFromComponent(DetachRules);
+	SetOwner(nullptr);
+	TPSOwnerCharacter = nullptr;
+	TPSOwnerController = nullptr;
 }
 

@@ -19,7 +19,7 @@ UCombatComponent::UCombatComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 	BaseWalkSpeed = 600.f;
 	AimWalkSpeed = 400.f;
-
+	bCanFire = true;
 	// ...
 }
 
@@ -29,6 +29,10 @@ void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 
 	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
 	DOREPLIFETIME(UCombatComponent, bAiming);
+	DOREPLIFETIME(UCombatComponent, CombatState);
+	//소유 클라이언트에만 복제
+	DOREPLIFETIME_CONDITION(UCombatComponent, CarriedAmmo, COND_OwnerOnly);
+	
 }
 void UCombatComponent::BeginPlay()
 {
@@ -40,6 +44,10 @@ void UCombatComponent::BeginPlay()
 		{
 			DefaultFOV = Character->GetFollowCamera()->FieldOfView;
 			CurrentFOV = DefaultFOV;
+		}
+		if (Character->HasAuthority())
+		{
+			InitalizeCarriedAmmo();
 		}
 	}
 }
@@ -82,7 +90,14 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 {
 	if (Character == nullptr || WeaponToEquip == nullptr) return;
+
+	//이미 무기를 장착 중이면 보유중인 무기를 Drop
+	if (EquippedWeapon)
+	{
+		EquippedWeapon->Dropped();
+	}
 	
+	//장착
 	EquippedWeapon = WeaponToEquip;
 	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
 	const USkeletalMeshSocket* HandSocket= Character->GetMesh()->GetSocketByName(FName("RightHandSocket"));
@@ -91,6 +106,18 @@ void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 		HandSocket->AttachActor(EquippedWeapon, Character->GetMesh());
 	}
 	EquippedWeapon->SetOwner(Character);
+	EquippedWeapon->SetHUDAmmo();
+	//휴대 탄약
+	if (CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
+	{
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
+	}
+	Controller = Controller == nullptr ? Cast<ATPSPlayerController>(Character->Controller) : Controller;
+	if (Controller)
+	{
+		Controller->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+	//
 	Character->GetCharacterMovement()->bOrientRotationToMovement = false;
 	Character->bUseControllerRotationYaw = true;
 }
@@ -99,9 +126,101 @@ void UCombatComponent::OnRep_EquippedWeapon()
 {
 	if (EquippedWeapon && Character)
 	{
+		EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
+		const USkeletalMeshSocket* HandSocket = Character->GetMesh()->GetSocketByName(FName("RightHandSocket"));
+		if (HandSocket)
+		{
+			HandSocket->AttachActor(EquippedWeapon, Character->GetMesh());
+		}
 		Character->GetCharacterMovement()->bOrientRotationToMovement = false;
 		Character->bUseControllerRotationYaw = true;
 	}
+}
+
+//재장전 관련
+void UCombatComponent::SeverReload_Implementation()
+{
+	if (Character == nullptr || EquippedWeapon == nullptr) return;
+
+	
+	CombatState = ECombatState::ECS_Reloading;
+	HandleReload();
+	
+}
+
+void UCombatComponent::UpdateAmmoValues()
+{
+	if (Character == nullptr || EquippedWeapon == nullptr) return;
+	//장전 후에 소지한 탄약 개수 차감
+	int32 ReloadAmount = AmountToReload();
+	if (CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
+	{
+		CarriedAmmoMap[EquippedWeapon->GetWeaponType()] -= ReloadAmount;
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
+	}
+	Controller = Controller == nullptr ? Cast<ATPSPlayerController>(Character->Controller) : Controller;
+	if (Controller)
+	{
+		Controller->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+	EquippedWeapon->AddAmmo(-ReloadAmount);
+}
+
+void UCombatComponent::FinishReload()
+{
+	if (Character == nullptr) return;
+	if (Character->HasAuthority())
+	{
+		CombatState = ECombatState::ECS_Unoccupied;
+		//탄약 업데이트
+		UpdateAmmoValues();
+	}
+	if (bFireButtonPressed)
+	{
+		Fire();
+	}
+	
+}
+void UCombatComponent::HandleReload()
+{
+	Character->PlayReloadMontage();
+}
+
+
+void UCombatComponent::Reload()
+{
+	if (EquippedWeapon == nullptr) return;
+	//탄창에 빈 공간이 얼마나 되는지 계산
+	int32 RoomInMag = EquippedWeapon->GetMagCapacity() - EquippedWeapon->GetAmmo();
+	//보유 탄약이 존재 하고 재장전 중이 아닐때
+	if (CarriedAmmo > 0 && CombatState != ECombatState::ECS_Reloading)
+	{
+		SeverReload();
+	}
+}
+
+int32 UCombatComponent::AmountToReload()
+{
+	if (EquippedWeapon == nullptr) return 0;
+	//탄창에 빈 공간이 얼마나 되는지 계산
+	int32 RoomInMag = EquippedWeapon->GetMagCapacity() - EquippedWeapon->GetAmmo();
+
+	
+	if (CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
+	{
+		//사용자가 가지고 있는 탄약 수 얻어오기
+		int32 AmountCarried = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
+
+		//두 숫자 중 더 작은 값 반환
+		//재장전 가능한 발 수 제한
+		int32 Least = FMath::Min(RoomInMag, AmountCarried);
+
+		// clamp(값, 최소, 최대)
+		//값을 최소와 최대 범위 안에 있도록 강제
+		//가지고 있는 탄보다 많은 탄약 장전 불가
+		return FMath::Clamp(RoomInMag, 0, Least);
+	}
+	return 0;
 }
 
 ///
@@ -111,23 +230,19 @@ void UCombatComponent::OnRep_EquippedWeapon()
 /// 
 void UCombatComponent::Fire()
 {
-	UE_LOG(LogTemp, Warning, TEXT("3. UCombatComponent::Fire() Called. bCanFire is: %s"), bCanFire ? TEXT("true") : TEXT("false"));
-	if (bCanFire)
+	UE_LOG(LogTemp, Warning, TEXT("bCanFire: %s"), bCanFire ? TEXT("true") : TEXT("false"));
+	if (CanFire())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("4. Firing Logic is now executing..."));
 		bCanFire = false;
 		ServerFire(HitTarget);
 		if (EquippedWeapon)
 		{
 			CrosshairShootingFactor = .75f;
 		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("EquippedWeapon is NULLPTR! Cannot Fire."));
-		}
 		StartFireTimer();
 	}
 }
+
 
 void UCombatComponent::StartFireTimer()
 {
@@ -163,7 +278,7 @@ void UCombatComponent::FireButtonPressed(bool bPressed)
 void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
 {
 	if (EquippedWeapon == nullptr) return;
-	if (Character)
+	if (Character && CombatState == ECombatState::ECS_Unoccupied)
 	{
 		Character->PlayFireMontage(bAiming);
 		EquippedWeapon->Fire(TraceHitTarget);
@@ -175,8 +290,47 @@ void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& Trac
 	MulticastFire(TraceHitTarget);
 }
 
-
+bool UCombatComponent::CanFire()
+{
+	if (EquippedWeapon == nullptr) return false;
+	return (!EquippedWeapon->IsEmpty() && bCanFire && CombatState==ECombatState::ECS_Unoccupied);
+}
 ///
+
+///사용자 휴대 탄약
+void UCombatComponent::OnRep_CarriedAmmo()
+{
+	Controller = Controller == nullptr ? Cast<ATPSPlayerController>(Character->Controller) : Controller;
+	if (Controller)
+	{
+		Controller->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+}
+
+void UCombatComponent::InitalizeCarriedAmmo()
+{
+	CarriedAmmoMap.Emplace(EWeaponType::EWT_AssaultRifle, StartingARAmmo);
+}
+
+void UCombatComponent::OnRep_CombatState()
+{
+	switch (CombatState)
+	{
+	case ECombatState::ECS_Unoccupied:
+		if (bFireButtonPressed)
+		{
+			Fire();
+		}
+		break;
+	case ECombatState::ECS_Reloading:
+		HandleReload();
+		break;
+	case ECombatState::ECS_MAX:
+		break;
+	}
+}
+
+//
 
 //피격 판정 관련
 void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
@@ -299,6 +453,7 @@ void UCombatComponent::SetHUDCrosshairs(float Deltatime)
 	}
 
 }
+
 
 void UCombatComponent::InterpFOV(float DeltaTime)
 {

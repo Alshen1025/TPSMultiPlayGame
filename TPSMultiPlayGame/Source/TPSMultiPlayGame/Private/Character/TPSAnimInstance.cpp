@@ -6,6 +6,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "TPSMultiPlayGame/Weapon/Weapon.h"
+#include "TPSMultiPlayGame/TPSTypes/Combatstate.h"
 
 void UTPSAnimInstance::NativeInitializeAnimation()
 {
@@ -36,6 +37,7 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	bIsAiming = TPSCharacter->IsAiming();
 	TurningInPlace = TPSCharacter->GetTurningInPlace();
 	bRotateRootBone = TPSCharacter->ShouldRotateRootBone();
+	bEliminated = TPSCharacter->GetIsEliminated();
 
 	// Offset Yaw for Strafing
 	FRotator AimRotation = TPSCharacter->GetBaseAimRotation();
@@ -63,6 +65,12 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 		LeftHandTransform = EquippedWeapon->GetWeaponMesh()->GetSocketTransform(FName("LeftHandSocket"), ERelativeTransformSpace::RTS_World);
 		DrawDebugSphere(GetWorld(), LeftHandTransform.GetLocation(), 10.f, 12, FColor::Green, false, -1, 0, 1.f);
 
+		FVector OutPosition;
+		FRotator OutRotation;
+		TPSCharacter->GetMesh()->TransformToBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
+		LeftHandTransform.SetLocation(OutPosition);
+		LeftHandTransform.SetRotation(FQuat(OutRotation));
+
 		//무기 관련 로테이션
 		//조준하는 방향과 총구 일치하게
 		if (TPSCharacter->IsLocallyControlled())
@@ -72,12 +80,8 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 			FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(RightHandTransform.GetLocation(), RightHandTransform.GetLocation() + (RightHandTransform.GetLocation() - TPSCharacter->GetHitTarget()));
 			RightHandRotation = FMath::RInterpTo(RightHandRotation, LookAtRotation, DeltaTime, 30.f);
 		}
-		
-
-		FVector OutPosition;
-		FRotator OutRotation;
-		TPSCharacter->GetMesh()->TransformToBoneSpace(FName("hand_r"), LeftHandTransform.GetLocation(), FRotator::ZeroRotator, OutPosition, OutRotation);
-		LeftHandTransform.SetLocation(OutPosition);
-		LeftHandTransform.SetRotation(FQuat(OutRotation));
 	}
+
+	//재장전 중이면 FABRIK사용하지 않게 처리
+	bUseFABRIK = TPSCharacter->GetCombatState() != ECombatState::ECS_Reloading;
 }
