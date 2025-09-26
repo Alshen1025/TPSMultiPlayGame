@@ -20,6 +20,17 @@ void ATPSPlayerController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	SetHUDTime();
+	CheckTimeSync(DeltaTime);
+}
+
+void ATPSPlayerController::CheckTimeSync(float DeltaTime)
+{
+	TimeSyncRunningTime += DeltaTime;
+	if (IsLocalController() && TimeSyncRunningTime > TimeSyncFrequency)
+	{
+		ServerRequestServerTime(GetWorld()->GetTimeSeconds());
+		TimeSyncRunningTime = 0.f;
+	}
 }
 
 //TODO : 서버와 클라이언트의 시간다름
@@ -27,14 +38,54 @@ void ATPSPlayerController::Tick(float DeltaTime)
 void ATPSPlayerController::SetHUDTime()
 {
 	//남은 시간 = MatchTIme(설정한 게임 시간) - 게임이 시작되고 흐른 시간
-	uint32 SecondsLeft = FMath::CeilToInt(MatchTime - GetWorld()->GetTimeSeconds());
+	uint32 SecondsLeft = FMath::CeilToInt(MatchTime - GetServerTime());
 	if (CountdownInt != SecondsLeft)
 	{
-		SetHUDMatchCountdown(MatchTime - GetWorld()->GetTimeSeconds());
+		SetHUDMatchCountdown(MatchTime - GetServerTime());
 	}
 	CountdownInt = SecondsLeft;
 }
 
+
+float ATPSPlayerController::GetServerTime()
+{
+	if (HasAuthority()) return GetWorld()->GetTimeSeconds(); //서버면 그냥 현재 시간 쓰면 됨
+	else return GetWorld()->GetTimeSeconds() + ClientServerDelta;
+}
+
+void ATPSPlayerController::ReceivedPlayer()
+{
+	Super::ReceivedPlayer();
+	if (IsLocalController())
+	{
+		ServerRequestServerTime(GetWorld()->GetTimeSeconds());
+	}
+}
+
+void ATPSPlayerController::ClientReportServerTime_Implementation(float TimeOfClientRequest, float TimeServerReceiced)
+{
+	//요청을 보내고 답을 받을 때 까지 걸린 시간(서버 - 클라이언트 왕복시간)
+	//클라이언트가 서버에 요청을 보내고 얼마나 많은 시간이 흘렀는가
+	float RoundTripTime = GetWorld()->GetTimeSeconds() - TimeOfClientRequest;
+
+	//서버의 현재 시간을 계산
+	//서버가 클라이언트의 요청을 받은시간에 왕복 시간의 절반을 더하기
+	float  CurrentSeverTime = TimeServerReceiced + (0.5 * RoundTripTime);
+
+	//서버의 현재 시간에서 클라이언트의 현재 시간을 빼면 서버와 클라이언트 사이의 시간차이 계산 가능
+	ClientServerDelta = CurrentSeverTime - GetWorld()->GetTimeSeconds();
+}
+
+//서버와 클라이언트 서버 시간 동기화
+void ATPSPlayerController::ServerRequestServerTime_Implementation(float TimeOfClientRequest)
+{
+	//서버는 자신의 현재 시간을 가져옴
+	float ServerTimeOfReceipt = GetWorld()->GetTimeSeconds();
+	//클라이언트 RPC호출해 서버 시간 전달
+	ClientReportServerTime(TimeOfClientRequest, ServerTimeOfReceipt);
+}
+
+//
 
 void ATPSPlayerController::SetHUDHealth(float Health, float MaxHealth)
 {
