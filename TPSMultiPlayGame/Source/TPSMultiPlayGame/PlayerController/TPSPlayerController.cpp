@@ -15,6 +15,27 @@ void ATPSPlayerController::BeginPlay()
 	TPSHUD = Cast<ATPSHUD>(GetHUD());
 }
 
+
+void ATPSPlayerController::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	SetHUDTime();
+}
+
+//TODO : 서버와 클라이언트의 시간다름
+
+void ATPSPlayerController::SetHUDTime()
+{
+	//남은 시간 = MatchTIme(설정한 게임 시간) - 게임이 시작되고 흐른 시간
+	uint32 SecondsLeft = FMath::CeilToInt(MatchTime - GetWorld()->GetTimeSeconds());
+	if (CountdownInt != SecondsLeft)
+	{
+		SetHUDMatchCountdown(MatchTime - GetWorld()->GetTimeSeconds());
+	}
+	CountdownInt = SecondsLeft;
+}
+
+
 void ATPSPlayerController::SetHUDHealth(float Health, float MaxHealth)
 {
 	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
@@ -93,4 +114,23 @@ void ATPSPlayerController::OnPossess(APawn* InPawn)
 	{
 		SetHUDHealth(TPSCharacter->GetHealth(), TPSCharacter->GetMaxHealth());
 	}
+}
+
+
+void ATPSPlayerController::SetHUDMatchCountdown(float CountDownTime)
+{
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->MatchCountdownText;
+	if (bHUDValid)
+	{
+		int32 Minutes = FMath::FloorToInt(CountDownTime / 60.f);
+		int32 Seconds = CountDownTime - Minutes * 60;
+
+
+		FString CountdownText = FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds);
+		TPSHUD->CharacterOverlay->MatchCountdownText->SetText(FText::FromString(CountdownText));
+	}
+
 }

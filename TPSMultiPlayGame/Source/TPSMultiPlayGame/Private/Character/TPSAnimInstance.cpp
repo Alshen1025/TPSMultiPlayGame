@@ -84,4 +84,8 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 
 	//재장전 중이면 FABRIK사용하지 않게 처리
 	bUseFABRIK = TPSCharacter->GetCombatState() != ECombatState::ECS_Reloading;
+	//장전 중에 AimOffset사용하지 않게
+	bUseAimOffset = TPSCharacter->GetCombatState() != ECombatState::ECS_Reloading;
+	//장전 중 오른손 회전 사용 X
+	bTransformRightHand = TPSCharacter->GetCombatState() != ECombatState::ECS_Reloading;
 }

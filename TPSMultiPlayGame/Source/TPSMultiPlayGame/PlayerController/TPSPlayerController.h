@@ -18,13 +18,19 @@ public:
 	void SetHUDHealth(float Health, float MaxHealth);
 	void SetHUDScore(float Score);
 	void SetHUDDefeats(int32 Defeats);
-
 	void SetHUDWeaponAmmo(int32 WeaponAmmo);
 	void SetHUDCarriedAmmo(int32 CarriedAmmo);
+	void SetHUDMatchCountdown(float CountDownTime);
 	virtual void OnPossess(APawn* InPawn) override;
+	virtual void Tick(float DeltaTime) override;
 protected:
 	virtual void BeginPlay() override;
+	void SetHUDTime();
 
 private:
+	UPROPERTY()
 	class ATPSHUD* TPSHUD;
+
+	float MatchTime = 120.f;
+	uint32 CountdownInt = 0;
 };

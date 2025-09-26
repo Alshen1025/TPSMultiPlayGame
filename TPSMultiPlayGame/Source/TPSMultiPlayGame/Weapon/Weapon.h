@@ -106,6 +106,10 @@ public:
 
 	//탄약 잔량 확인
 	bool IsEmpty();
+
+	//사운드
+	UPROPERTY(EditAnywhere)
+	class USoundCue* EquipSound;
 	
 
 public:	
