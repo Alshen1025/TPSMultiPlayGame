@@ -323,7 +323,7 @@ void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& Trac
 bool UCombatComponent::CanFire()
 {
 	if (EquippedWeapon == nullptr) return false;
-	return (!EquippedWeapon->IsEmpty() && bCanFire && CombatState==ECombatState::ECS_Unoccupied);
+	return (!EquippedWeapon->IsEmpty() && bCanFire && CombatState==ECombatState::ECS_Unoccupied/* && !Character->GetCharacterMovement()->IsFalling()*/);
 }
 ///
 

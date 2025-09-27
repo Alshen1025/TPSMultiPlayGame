@@ -26,9 +26,10 @@ public:
 	void EquipWeapon(AWeapon* WeaponToEquip);
 
 	
-
 	friend class ATPSCharacter;
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+	void FireButtonPressed(bool bPressed);
 
 protected:
 	virtual void BeginPlay() override;
@@ -41,7 +42,7 @@ protected:
 	UFUNCTION()
 	void OnRep_EquippedWeapon();
 
-	void FireButtonPressed(bool bPressed);
+	
 
 	//FVector_NetQuantize사용이유 -> 발사체의 목표지점을 네트워크를 통해 전송
 	//클라이언트가 발사한 위치를 서버에 전송하고 다른 클라이언트에 복제하여 발사체를 동기화.

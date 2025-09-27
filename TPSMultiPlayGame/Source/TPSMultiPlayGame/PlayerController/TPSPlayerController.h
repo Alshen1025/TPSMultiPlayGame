@@ -21,8 +21,12 @@ public:
 	void SetHUDWeaponAmmo(int32 WeaponAmmo);
 	void SetHUDCarriedAmmo(int32 CarriedAmmo);
 	void SetHUDMatchCountdown(float CountDownTime);
+	void SetHUDAnnouncementCountdown(float CountdownTime);
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void Tick(float DeltaTime) override;
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
 protected:
 	virtual void BeginPlay() override;
 	void SetHUDTime();
@@ -52,10 +56,27 @@ protected:
 
 	void CheckTimeSync(float DeltaTime);
 
+	void PollInit();
+
+	//플레이어가 매치 상태를 알 수 있도록(게임 중간에 참여하는 경우)
+	UFUNCTION(Server, Reliable)
+	void ServerCheckMatchState();
+
+	//클라이언트의 게임 참가
+	UFUNCTION(Client, Reliable)
+	void ClientJoinMidGame(FName StateOfMatch, float Warmup, float Match, float StartingTime, float Cooldown);
+
 public:
 	
 	virtual float GetServerTime(); //서버의 시간으로 동기화
 	virtual void ReceivedPlayer() override;  //가능한 한 빠리 서버 시계와 동기화
+	void OnMatchStateSet(FName State); //Match State설정
+
+	//매치 시작
+	void HandleMatchHasStarted();
+	//매치 종료
+	void HandleCooldown();
+
 
 /// <summary>
 /// 
@@ -65,6 +86,27 @@ private:
 	UPROPERTY()
 	class ATPSHUD* TPSHUD;
 
-	float MatchTime = 120.f;
+	float LevelStartingTime = 0.f;
+	float MatchTime = 0.f;
+	float WarmupTime = 0.f;
+	float CooldownTime = 0.f;
 	uint32 CountdownInt = 0;
+
+	UPROPERTY(ReplicatedUsing = OnRep_MatchState)
+	FName MatchState;
+
+	UFUNCTION()
+	void OnRep_MatchState();
+
+	UPROPERTY()
+	class UCharacterOverlay* CharacterOverlay;
+	bool bInitializeCharacterOverlay = false;
+
+	float HUDHealth;
+	float HUDMaxHealth;
+	float HUDScore;
+	int32 HUDDefeats;
+
+	UPROPERTY()
+	class ATPSPlayerState* TPSGameMode;
 };

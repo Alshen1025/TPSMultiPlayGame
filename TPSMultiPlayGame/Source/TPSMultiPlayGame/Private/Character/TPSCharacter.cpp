@@ -118,6 +118,19 @@ void ATPSCharacter::BeginPlay()
 void ATPSCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	RotateInPlace(DeltaTime);
+	HideCameraIfCharacterClose();
+	PoolInit();
+}
+
+void ATPSCharacter::RotateInPlace(float DeltaTime)
+{
+	if (bDisableGameplay)
+	{
+		bUseControllerRotationYaw = false;
+		TurningInPlace = ETurningInPlace::ETIP_NotTurning;
+		return;
+	}
 	if (GetLocalRole() > ENetRole::ROLE_SimulatedProxy && IsLocallyControlled())
 	{
 		AimOffset(DeltaTime);
@@ -131,9 +144,8 @@ void ATPSCharacter::Tick(float DeltaTime)
 		}
 		CalculateAO_Pitch();
 	}
-	HideCameraIfCharacterClose();
-	PoolInit();
 }
+
 
 void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -172,6 +184,7 @@ void ATPSCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	//무기에 Overlapping된 클라이언트와 서버에만 복제
 	DOREPLIFETIME_CONDITION(ATPSCharacter, OverlappingWeapon, COND_OwnerOnly);
 	DOREPLIFETIME(ATPSCharacter, Health);
+	DOREPLIFETIME(ATPSCharacter, bDisableGameplay);
 }
 
 void ATPSCharacter::PostInitializeComponents()
@@ -217,6 +230,7 @@ void ATPSCharacter::PlayHitReactMontage()
 //플레이어 조작 관련
 void ATPSCharacter::MoveFoward(float Value)
 {
+	if (bDisableGameplay) return;
 	if (Controller != nullptr && Value != 0.0f)
 	{
 		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
@@ -226,6 +240,7 @@ void ATPSCharacter::MoveFoward(float Value)
 }
 void ATPSCharacter::MoveRight(float Value)
 {
+	if (bDisableGameplay) return;
 	if (Controller != nullptr && Value != 0.0f)
 	{
 		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
@@ -259,6 +274,7 @@ void ATPSCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
 
 void ATPSCharacter::EquipButtonPressed()
 {
+	if (bDisableGameplay) return;
 	//무기 장착 버튼을 눌렀을 때 서버는 장비를 그냥 장착하고
 	//클라이언트면 RPC호출
 	if (Combat)
@@ -364,6 +380,7 @@ bool ATPSCharacter::IsAiming()
 
 void ATPSCharacter::CrouchButtonPressed()
 {
+	if (bDisableGameplay) return;
 	Crouch();
 }
 
@@ -374,6 +391,7 @@ void ATPSCharacter::CrouchButtonReleased()
 
 void ATPSCharacter::AimButtonPressed()
 {
+	if (bDisableGameplay) return;
 	if (Combat)
 	{
 		Combat->SetAiming(true);
@@ -382,6 +400,7 @@ void ATPSCharacter::AimButtonPressed()
 
 void ATPSCharacter::AimButtonReleased()
 {
+	if (bDisableGameplay) return;
 	if (Combat)
 	{
 		Combat->SetAiming(false);
@@ -390,7 +409,7 @@ void ATPSCharacter::AimButtonReleased()
 
 void ATPSCharacter::FireButtonPressed()
 {
-	
+	if (bDisableGameplay) return;
 	if (Combat && Combat->EquippedWeapon)
 	{
 		Combat->FireButtonPressed(true);
@@ -399,6 +418,7 @@ void ATPSCharacter::FireButtonPressed()
 
 void ATPSCharacter::ReloadButtonPressed()
 {
+	if (bDisableGameplay) return;
 	if (Combat)
 	{
 		Combat->Reload();
@@ -410,6 +430,19 @@ void ATPSCharacter::FireButtonReleased()
 	if (Combat && Combat->EquippedWeapon)
 	{
 		Combat->FireButtonPressed(false);
+	}
+}
+
+void ATPSCharacter::Jump()
+{
+	if (bDisableGameplay) return;;
+	if (bIsCrouched)
+	{
+		UnCrouch();
+	}
+	else
+	{
+		Super::Jump();
 	}
 }
 
@@ -548,8 +581,6 @@ void ATPSCharacter::UpdateHUDHealth()
 	}
 }
 
-
-
 //플레이어 제거(사망), 리스폰
 void ATPSCharacter::MulticastEliminated_Implementation()
 {
@@ -563,9 +594,11 @@ void ATPSCharacter::MulticastEliminated_Implementation()
 	//플레이어 움직임 비활성화
 	GetCharacterMovement()->DisableMovement();
 	GetCharacterMovement()->StopMovementImmediately();
-	if (TPSPlayerController)
+	//일부 조작 비활성화
+	bDisableGameplay = true;
+	if (Combat)
 	{
-		DisableInput(TPSPlayerController);
+		Combat->FireButtonPressed(false);
 	}
 	//충돌 무효화
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);

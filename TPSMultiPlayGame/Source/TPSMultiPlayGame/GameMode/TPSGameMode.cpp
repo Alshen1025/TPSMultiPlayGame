@@ -7,7 +7,73 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerStart.h"
 #include "TPSMultiPlayGame/PlayerState/TPSPlayerState.h"
+#include "TPSMultiPlayGame/GameState/TPSGameState.h"
 
+namespace MatchState
+{
+	const FName Cooldown = FName("Cooldown");
+}
+
+ATPSGameMode::ATPSGameMode()
+{
+	//true로 시작시 바로 시작하지 않고 레벨을 날아 다닐 수 있는 defaultpawn을 생성하며 대기함
+	bDelayedStart = true;
+
+}
+
+void ATPSGameMode::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (MatchState == MatchState::WaitingToStart)
+	{
+		CountdownTime = WarmupTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
+		if (CountdownTime <= 0.0f)
+		{
+			StartMatch();
+		}
+	}
+	else if (MatchState == MatchState::InProgress)
+	{
+		CountdownTime = WarmupTime + MatchTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
+		if (CountdownTime <= 0.f)
+		{
+			SetMatchState(MatchState::Cooldown);
+		}
+	}
+	else if (MatchState == MatchState::Cooldown)
+	{
+		CountdownTime = CooldownTime + WarmupTime + MatchTime - GetWorld()->GetTimeSeconds() + LevelStartingTime;
+		if (CountdownTime <= 0.f)
+		{
+			RestartGame();
+		}
+	}
+}
+
+void ATPSGameMode::BeginPlay()
+{
+	Super::BeginPlay();
+	LevelStartingTime = GetWorld()->GetTimeSeconds();
+	
+}
+
+void ATPSGameMode::OnMatchStateSet()
+{
+	Super::OnMatchStateSet();
+
+	//Match상태를 플레이어 컨트롤러들에게 알려야함
+	//FConstPlayerControllerIterator -> 모든 플레이어 컨트롤러 반복자
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator();  It;  ++It)
+	{
+		//존재하는 모든 컨트롤러를 순회하면서 MatchState알리기
+		ATPSPlayerController* TPSCharacter = Cast<ATPSPlayerController>(*It);
+		if (TPSCharacter)
+		{
+			TPSCharacter->OnMatchStateSet(MatchState);
+		}
+	}
+}
 
 
 //플레이어 사망, 부활
@@ -15,10 +81,11 @@ void ATPSGameMode::EliminatePlayer(class ATPSCharacter* EliminatedCharacter, cla
 {
 	ATPSPlayerState* AttackerPlayerState = AttackerController ? Cast<ATPSPlayerState>(AttackerController->PlayerState) : nullptr;
 	ATPSPlayerState* VictimPlayerState = VictimController ? Cast<ATPSPlayerState>(VictimController->PlayerState) : nullptr;
-
-	if (AttackerPlayerState && AttackerPlayerState != VictimPlayerState)
+	ATPSGameState* TPSGameState = GetGameState<ATPSGameState>();
+	if (AttackerPlayerState && AttackerPlayerState != VictimPlayerState && TPSGameState)
 	{
 		AttackerPlayerState->AddToScore(1.f);
+		TPSGameState->UpdateTopScore(AttackerPlayerState);
 	}
 	if (VictimPlayerState)
 	{
@@ -46,3 +113,4 @@ void ATPSGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController* Eli
 		RestartPlayerAtPlayerStart(ElimmedController, PlayerStarts[Selection]);
 	}
 }
+

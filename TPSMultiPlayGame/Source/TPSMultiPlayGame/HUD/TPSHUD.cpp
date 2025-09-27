@@ -4,13 +4,11 @@
 #include "TPSHUD.h"
 #include "GameFramework/PlayerController.h"
 #include "CharacterOverlay.h"
-
-
+#include "Announcement.h"
 
 void ATPSHUD::BeginPlay()
 {
 	Super::BeginPlay();
-	AddCharacterOverlay();
 }
 
 void ATPSHUD::AddCharacterOverlay()
@@ -22,6 +20,17 @@ void ATPSHUD::AddCharacterOverlay()
 		CharacterOverlay->AddToViewport();
 	}
 }
+
+void ATPSHUD::AddAnnouncement()
+{
+	APlayerController* PlayerContraller = GetOwningPlayerController();
+	if (PlayerContraller && AnnouncementClass)
+	{
+		Announcement = CreateWidget<UAnnouncement>(PlayerContraller, AnnouncementClass);
+		Announcement->AddToViewport();
+	}
+}
+
 
 void ATPSHUD::DrawHUD()
 {
@@ -60,8 +69,6 @@ void ATPSHUD::DrawHUD()
 		}
 	}
 }
-
-
 
 void ATPSHUD::DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread, FLinearColor CrosshairsColor)
 {

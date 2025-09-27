@@ -31,6 +31,12 @@ public:
 	void PlayReloadMontage();
 	void PlayDeathMontage();
 
+	//매치 상태에 따라 입력과 행동 제한
+	UPROPERTY(Replicated)
+	bool bDisableGameplay = false;
+	FORCEINLINE bool GetDisableGameplay() const { return bDisableGameplay; }
+	
+
 protected:
 	//관련 클래스 확인 후 HUD 초기화
 	void PoolInit();
@@ -51,6 +57,7 @@ protected:
 	void ReloadButtonPressed();
 	void FireButtonReleased();
 
+	virtual void Jump() override;
 	//AimOffset관련 계산
 	void AimOffset(float DeltaTime);
 
@@ -78,7 +85,8 @@ protected:
 
 	bool bEliminated = false;
 
-
+	//AimOffset과 기타 회전 관련
+	void RotateInPlace(float DeltaTime);
 
 
 private:
@@ -196,8 +204,10 @@ public:
 	UFUNCTION(Server, Reliable)
 	void ServerEquipButtomPressed();
 
-
+	//CombatComponent Gatter
+	FORCEINLINE UCombatComponent* GetCombat() const { return Combat; }
 	
+
 
 	//플레이어 리스폰 관련
 
