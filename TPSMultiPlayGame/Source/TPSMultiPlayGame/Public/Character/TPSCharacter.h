@@ -7,7 +7,11 @@
 #include "TPSMultiPlayGame/TPSTypes/TruningInPlace.h"
 #include "TPSMultiPlayGame/Interfaces/InteractWithCrosshairsInterface.h"
 #include "TPSMultiPlayGame/TPSTypes/Combatstate.h"
+#include "InputActionValue.h"
 #include "TPSCharacter.generated.h"
+
+class UInputMappingContext;
+class UInputAction;
 
 UCLASS()
 class TPSMULTIPLAYGAME_API ATPSCharacter : public ACharacter, public IInteractWithCrosshairsInterface
@@ -42,9 +46,40 @@ protected:
 	void PoolInit();
 	virtual void BeginPlay() override;
 
+	// Enhanced Input 애셋들을 담을 변수들
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputMappingContext> DefaultMappingContext;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> MoveAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> LookAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> JumpAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> EquipAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> CrouchAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> AimAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> FireAction;
+
+	UPROPERTY(EditAnywhere, Category = "Input")
+	TObjectPtr<UInputAction> ReloadAction;
+
 	//Action, Axis 콜백
 	void MoveFoward(float Value);
 	void MoveRight(float Value);
+
+	void Move(const FInputActionValue& Value);
+	void Look(const FInputActionValue& Value);
 	void Turn(float Value);
 	void LookUp(float Value);
 	void EquipButtonPressed();

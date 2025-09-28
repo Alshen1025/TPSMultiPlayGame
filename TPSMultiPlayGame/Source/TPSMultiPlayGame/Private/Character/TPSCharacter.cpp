@@ -2,6 +2,8 @@
 
 
 #include "Character/TPSCharacter.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -106,6 +108,11 @@ void ATPSCharacter::BeginPlay()
 	if (TPSPlayerController)
 	{
 		TPSPlayerController->SetHUDHealth(Health, MaxHealth);
+		UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(TPSPlayerController->GetLocalPlayer());
+		if (Subsystem)
+		{
+			Subsystem->AddMappingContext(DefaultMappingContext, 0);
+		}
 	}
 
 	if (HasAuthority())
@@ -113,6 +120,7 @@ void ATPSCharacter::BeginPlay()
 		//Damage입었을 때 호출할 함수 델리게이트에 연결
 		OnTakeAnyDamage.AddDynamic(this, &ATPSCharacter::ReciveDamage);
 	}
+
 }
 
 void ATPSCharacter::Tick(float DeltaTime)
@@ -150,27 +158,34 @@ void ATPSCharacter::RotateInPlace(float DeltaTime)
 void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
+	UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent);
+	// 이동 (Axis2D)
+	EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ATPSCharacter::Move);
 
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ATPSCharacter::Jump);
-	PlayerInputComponent->BindAction("Equip", IE_Pressed, this, &ATPSCharacter::EquipButtonPressed);
+	// 둘러보기 (Axis2D)
+	EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATPSCharacter::Look);
 
-	PlayerInputComponent->BindAxis("MoveForward", this, &ATPSCharacter::MoveFoward);
-	PlayerInputComponent->BindAxis("MoveRight", this, &ATPSCharacter::MoveRight);
+	// 점프 (Pressed)
+	// Jump() 함수는 ACharacter에 이미 정의되어 있으므로 그대로 사용 가능
+	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 
-	PlayerInputComponent->BindAxis("Turn", this, &ATPSCharacter::Turn);
-	PlayerInputComponent->BindAxis("LookUp", this, &ATPSCharacter::LookUp);
+	// 장착 (Pressed)
+	EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Started, this, &ATPSCharacter::EquipButtonPressed);
 
-	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ATPSCharacter::CrouchButtonPressed);
-	PlayerInputComponent->BindAction("Crouch", IE_Released, this, &ATPSCharacter::CrouchButtonReleased);
-	PlayerInputComponent->BindAction("Aim", IE_Pressed, this, &ATPSCharacter::AimButtonPressed);
-	PlayerInputComponent->BindAction("Aim", IE_Released, this, &ATPSCharacter::AimButtonReleased);
+	// 웅크리기 (Pressed / Released)
+	EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Started, this, &ATPSCharacter::CrouchButtonPressed);
+	EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &ATPSCharacter::CrouchButtonReleased);
 
-	//발사
-	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ATPSCharacter::FireButtonPressed);
-	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ATPSCharacter::FireButtonReleased);
+	// 조준 (Pressed / Released)
+	EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &ATPSCharacter::AimButtonPressed);
+	EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &ATPSCharacter::AimButtonReleased);
 
-	//장전
-	PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &ATPSCharacter::ReloadButtonPressed);
+	// 발사 (Pressed / Released)
+	EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Started, this, &ATPSCharacter::FireButtonPressed);
+	EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Completed, this, &ATPSCharacter::FireButtonReleased);
+
+	// 재장전 (Pressed)
+	EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Started, this, &ATPSCharacter::ReloadButtonPressed);
 }
 
 void ATPSCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -228,6 +243,8 @@ void ATPSCharacter::PlayHitReactMontage()
 ///
 
 //플레이어 조작 관련
+
+/*Enhanced Input사용
 void ATPSCharacter::MoveFoward(float Value)
 {
 	if (bDisableGameplay) return;
@@ -248,6 +265,7 @@ void ATPSCharacter::MoveRight(float Value)
 		AddMovementInput(Direction, Value);
 	}
 }
+
 void ATPSCharacter::Turn(float Value)
 {
 	AddControllerYawInput(Value);
@@ -257,7 +275,108 @@ void ATPSCharacter::LookUp(float Value)
 {
 	AddControllerPitchInput(Value);
 }
+
+*/
+
+void ATPSCharacter::Move(const FInputActionValue& Value)
+{
+	const FVector2D MovementVector = Value.Get<FVector2D>();
+
+	if (bDisableGameplay) return;
+	if (Controller != nullptr)
+	{
+		// 전/후 이동
+		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
+		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+		AddMovementInput(ForwardDirection, MovementVector.Y);
+
+		// 좌/우 이동
+		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+		AddMovementInput(RightDirection, MovementVector.X);
+	}
+}
+void ATPSCharacter::Look(const FInputActionValue& Value)
+{
+	const FVector2D LookAxisVector = Value.Get<FVector2D>();
+
+	if (Controller != nullptr)
+	{
+		AddControllerYawInput(LookAxisVector.X);
+		AddControllerPitchInput(LookAxisVector.Y);
+	}
+}
+
+
+void ATPSCharacter::CrouchButtonPressed()
+{
+	if (bDisableGameplay) return;
+	Crouch();
+}
+
+void ATPSCharacter::CrouchButtonReleased()
+{
+	UnCrouch();
+}
+
+void ATPSCharacter::AimButtonPressed()
+{
+	if (bDisableGameplay) return;
+	if (Combat)
+	{
+		Combat->SetAiming(true);
+	}
+}
+
+void ATPSCharacter::AimButtonReleased()
+{
+	if (bDisableGameplay) return;
+	if (Combat)
+	{
+		Combat->SetAiming(false);
+	}
+}
+
+void ATPSCharacter::FireButtonPressed()
+{
+	if (bDisableGameplay) return;
+	if (Combat && Combat->EquippedWeapon)
+	{
+		Combat->FireButtonPressed(true);
+	}
+}
+
+void ATPSCharacter::ReloadButtonPressed()
+{
+	if (bDisableGameplay) return;
+	if (Combat)
+	{
+		Combat->Reload();
+	}
+}
+
+void ATPSCharacter::FireButtonReleased()
+{
+	if (Combat && Combat->EquippedWeapon)
+	{
+		Combat->FireButtonPressed(false);
+	}
+}
+
+void ATPSCharacter::Jump()
+{
+	if (bDisableGameplay) return;;
+	if (bIsCrouched)
+	{
+		UnCrouch();
+	}
+	else
+	{
+		Super::Jump();
+	}
+}
+
 //
+
 
 // 무기 장착 관련
 void ATPSCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
@@ -377,74 +496,6 @@ bool ATPSCharacter::IsAiming()
 }
 
 //전투 관련 입력 콜백
-
-void ATPSCharacter::CrouchButtonPressed()
-{
-	if (bDisableGameplay) return;
-	Crouch();
-}
-
-void ATPSCharacter::CrouchButtonReleased()
-{
-	UnCrouch();
-}
-
-void ATPSCharacter::AimButtonPressed()
-{
-	if (bDisableGameplay) return;
-	if (Combat)
-	{
-		Combat->SetAiming(true);
-	}
-}
-
-void ATPSCharacter::AimButtonReleased()
-{
-	if (bDisableGameplay) return;
-	if (Combat)
-	{
-		Combat->SetAiming(false);
-	}
-}
-
-void ATPSCharacter::FireButtonPressed()
-{
-	if (bDisableGameplay) return;
-	if (Combat && Combat->EquippedWeapon)
-	{
-		Combat->FireButtonPressed(true);
-	}
-}
-
-void ATPSCharacter::ReloadButtonPressed()
-{
-	if (bDisableGameplay) return;
-	if (Combat)
-	{
-		Combat->Reload();
-	}
-}
-
-void ATPSCharacter::FireButtonReleased()
-{
-	if (Combat && Combat->EquippedWeapon)
-	{
-		Combat->FireButtonPressed(false);
-	}
-}
-
-void ATPSCharacter::Jump()
-{
-	if (bDisableGameplay) return;;
-	if (bIsCrouched)
-	{
-		UnCrouch();
-	}
-	else
-	{
-		Super::Jump();
-	}
-}
 
 float ATPSCharacter::CalculateSpeed()
 {
@@ -596,6 +647,7 @@ void ATPSCharacter::MulticastEliminated_Implementation()
 	GetCharacterMovement()->StopMovementImmediately();
 	//일부 조작 비활성화
 	bDisableGameplay = true;
+	GetCharacterMovement()->DisableMovement();
 	if (Combat)
 	{
 		Combat->FireButtonPressed(false);
