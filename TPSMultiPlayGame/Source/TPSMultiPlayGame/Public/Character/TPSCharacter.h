@@ -74,14 +74,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Input")
 	TObjectPtr<UInputAction> ReloadAction;
 
-	//Action, Axis ฤÝน้
-	void MoveFoward(float Value);
-	void MoveRight(float Value);
 
 	void Move(const FInputActionValue& Value);
+
 	void Look(const FInputActionValue& Value);
-	void Turn(float Value);
-	void LookUp(float Value);
 	void EquipButtonPressed();
 	void CrouchButtonPressed();
 	void CrouchButtonReleased();

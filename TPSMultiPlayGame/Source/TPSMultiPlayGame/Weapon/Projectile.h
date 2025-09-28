@@ -25,27 +25,32 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float Damage = 10.f;
 
+	UPROPERTY(EditAnywhere)
+	UParticleSystem* ImpactParticles;
+
+	UPROPERTY(EditAnywhere)
+	class USoundCue* ImpactSound;
+
+	UPROPERTY(EditAnywhere)
+	class UBoxComponent* CollisionBox;
+
+protected:
+	UPROPERTY(VisibleAnywhere)
+	class UProjectileMovementComponent* ProjectileMovementComponent;
+
 public:	
 	virtual void Tick(float DeltaTime) override;
 
 private:
 
-	UPROPERTY(EditAnywhere)
-	class UBoxComponent* CollisionBox;
-
-	UPROPERTY(VisibleAnywhere)
-	class UProjectileMovementComponent* ProjectileMovementComponent;
+	
 
 	UPROPERTY(EditAnywhere)
 	class UParticleSystem* Tracer;
 
 	class UParticleSystemComponent* TracerComponent;
 
-	UPROPERTY(EditAnywhere)
-	UParticleSystem* ImpactParticles;
-
-	UPROPERTY(EditAnywhere)
-	class USoundCue* ImpactSound;
+	
 
 	
 

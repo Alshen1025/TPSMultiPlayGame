@@ -150,7 +150,7 @@ void  ATPSPlayerController::OnMatchStateSet(FName State)
 void  ATPSPlayerController::HandleMatchHasStarted()
 {
 	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
-	if (TPSHUD)
+	if (TPSHUD && TPSHUD->CharacterOverlay == nullptr)
 	{
 		TPSHUD->AddCharacterOverlay();
 		if (TPSHUD->Announcement && TPSHUD->Announcement->IsInViewport())
@@ -226,6 +226,7 @@ void ATPSPlayerController::HandleCooldown()
 
 void ATPSPlayerController::OnRep_MatchState()
 {
+	
 	if (MatchState == MatchState::InProgress)
 	{
 		HandleMatchHasStarted();
@@ -234,6 +235,8 @@ void ATPSPlayerController::OnRep_MatchState()
 	{
 		HandleCooldown();
 	}
+	
+	
 }
 
 void ATPSPlayerController::ServerCheckMatchState_Implementation()

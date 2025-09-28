@@ -166,7 +166,6 @@ void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompon
 	EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ATPSCharacter::Look);
 
 	// 점프 (Pressed)
-	// Jump() 함수는 ACharacter에 이미 정의되어 있으므로 그대로 사용 가능
 	EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 
 	// 장착 (Pressed)
@@ -243,41 +242,6 @@ void ATPSCharacter::PlayHitReactMontage()
 ///
 
 //플레이어 조작 관련
-
-/*Enhanced Input사용
-void ATPSCharacter::MoveFoward(float Value)
-{
-	if (bDisableGameplay) return;
-	if (Controller != nullptr && Value != 0.0f)
-	{
-		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
-		const FVector Direction(FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X));
-		AddMovementInput(Direction, Value);
-	}
-}
-void ATPSCharacter::MoveRight(float Value)
-{
-	if (bDisableGameplay) return;
-	if (Controller != nullptr && Value != 0.0f)
-	{
-		const FRotator YawRotation(0.0f, Controller->GetControlRotation().Yaw, 0.0f);
-		const FVector Direction(FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y));
-		AddMovementInput(Direction, Value);
-	}
-}
-
-void ATPSCharacter::Turn(float Value)
-{
-	AddControllerYawInput(Value);
-}
-
-void ATPSCharacter::LookUp(float Value)
-{
-	AddControllerPitchInput(Value);
-}
-
-*/
-
 void ATPSCharacter::Move(const FInputActionValue& Value)
 {
 	const FVector2D MovementVector = Value.Get<FVector2D>();
@@ -436,6 +400,12 @@ void ATPSCharacter::PlayReloadMontage()
 		switch (Combat->EquippedWeapon->GetWeaponType())
 		{
 		case EWeaponType::EWT_AssaultRifle:
+			SectionName = FName("Rifle");
+			break;
+		case EWeaponType::EWT_RocketLauncher:
+			SectionName = FName("Rifle");
+			break;
+		case EWeaponType::EWT_Pistol :
 			SectionName = FName("Rifle");
 			break;
 		}
