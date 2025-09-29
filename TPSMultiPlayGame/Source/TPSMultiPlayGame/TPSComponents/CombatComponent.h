@@ -8,7 +8,7 @@
 #include "TPSMultiPlayGame/HUD/TPSHUD.h"
 #include "TPSMultiPlayGame/TPSTypes/Combatstate.h"
 #include "CombatComponent.generated.h"
-#define TRACE_LENGTH 80000.f;
+
 
 class AWeapon;
 class ATPSCharacter;
@@ -133,10 +133,19 @@ private:
 	int32 StartingARAmmo = 30;
 
 	UPROPERTY(EditAnywhere)
-	int32 StartingRocketAmmo = 0;
+	int32 StartingRocketAmmo = 4;
 
 	UPROPERTY(EditAnywhere)
 	int32 StartingPistolAmmo = 50;
+
+	UPROPERTY(EditAnywhere)
+	int32 StartingShotgunAmmo = 24;
+
+	UPROPERTY(EditAnywhere)
+	int32 StartingSniperAmmo = 10;
+
+	UPROPERTY(EditAnywhere)
+	int32 StartingGrenadeLauncherAmmo = 24;
 	//
 
 	void InitalizeCarriedAmmo();

@@ -6,6 +6,10 @@
 #include "TPSMultiPlayGame/Public/Character/TPSCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "WeaponTypes.h"
+#include "DrawDebugHelpers.h"
+#include "Sound/SoundCue.h"
 
 void AHitScanWeapon::Fire(const FVector& HitTarget)
 {
@@ -22,65 +26,126 @@ void AHitScanWeapon::Fire(const FVector& HitTarget)
 	if (MuzzleFlashSocket)
 	{
 		FTransform SocketTransform = MuzzleFlashSocket->GetSocketTransform(GetWeaponMesh());
-		//라인 트레이스 시작점과 끝점
-		FVector Start = SocketTransform.GetLocation();
-		FVector End = Start + (HitTarget - Start) * 1.25f;
-
-		//라인 트레이스 시작
 		FHitResult FireHit;
-		UWorld* World = GetWorld();
-		if (World)
+		FVector Start = SocketTransform.GetLocation();
+
+		//라인 트레이스로 피격 판정
+		WeaponTraceHit(Start, HitTarget, FireHit);
+		//Damage주기
+		//발사체가 없으므로 라인트레이스 발생 시 데미지를 가함.
+		//TPSCharacter->피해를 입을 대상
+		ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(FireHit.GetActor());
+		if (TPSCharacter && HasAuthority() && InstigatorController)
 		{
-			World->LineTraceSingleByChannel
-			(
-				FireHit,
-				Start,
-				End,
-				ECollisionChannel::ECC_Visibility
+			//데미지 처리는 서버에서만
+			UGameplayStatics::ApplyDamage(
+				TPSCharacter,
+				Damage,
+				InstigatorController,
+				this,
+				UDamageType::StaticClass()
 			);
-			//Beam용 로컬벡터
-			FVector BeamEnd = End;
-			//Hit이 발생했으면
-			if (FireHit.bBlockingHit)
+		}
+		if (ImpactParticles)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(
+				GetWorld(),
+				ImpactParticles,
+				FireHit.ImpactPoint,
+				FireHit.ImpactNormal.Rotation()
+			);
+		}
+		if (HitSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(
+				this,
+				HitSound,
+				FireHit.ImpactPoint
+			);
+		}
+		if (MuzzleFlash)
+		{
+			UGameplayStatics::SpawnEmitterAtLocation(
+				GetWorld(),
+				MuzzleFlash,
+				SocketTransform
+			);
+		}
+		if (FireSound)
+		{
+			UGameplayStatics::PlaySoundAtLocation(
+				this,
+				FireSound,
+				GetActorLocation()
+			);
+		}
+	}
+}
+
+void AHitScanWeapon::WeaponTraceHit(const FVector& TraceStart, const FVector& HitTarget, FHitResult& OutHit)
+{
+	//라인 트레이스 시작
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		//탄착군 사용 여부에 따라 End지점 다르게 구하기
+		FVector End = bUseScatter ? TraceEndWithScatter(TraceStart, HitTarget)  : TraceStart + (HitTarget - TraceStart) * 1.25f;
+		World->LineTraceSingleByChannel
+		(
+			OutHit,
+			TraceStart,
+			End,
+			ECollisionChannel::ECC_Visibility
+		);
+		//Beam용 로컬벡터
+		FVector BeamEnd = End;
+		//Hit이 발생했으면
+		if (OutHit.bBlockingHit)
+		{
+			BeamEnd = OutHit.ImpactPoint;
+		}
+		if (BeamParticles)
+		{
+			UParticleSystemComponent* Beam = UGameplayStatics::SpawnEmitterAtLocation(
+				World,
+				BeamParticles,
+				TraceStart,
+				FRotator::ZeroRotator,
+				true
+			);
+			if (Beam)
 			{
-				BeamEnd = FireHit.ImpactPoint;
-				//Damage주기
-				//발사체가 없으므로 라인트레이스 발생 시 데미지를 가함.
-				//TPSCharacter->피해를 입을 대상
-				ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(FireHit.GetActor());
-				if (TPSCharacter && HasAuthority() && InstigatorController)
-				{
-					//데미지 처리는 서버에서만
-					UGameplayStatics::ApplyDamage(
-						TPSCharacter,
-						Damage,
-						InstigatorController,
-						this,
-						UDamageType::StaticClass()
-					);
-				}
-				if (ImpactParticles)
-				{
-					UGameplayStatics::SpawnEmitterAtLocation(
-						World,
-						ImpactParticles,
-						FireHit.ImpactPoint,
-						FireHit.ImpactNormal.Rotation()
-					);
-				}
-				if (BeamParticles)
-				{
-					UParticleSystemComponent* Beam = UGameplayStatics::SpawnEmitterAtLocation(
-						World,
-						BeamParticles,
-						SocketTransform
-					);
-					if (Beam)
-					{
-						Beam->SetVectorParameter(FName("Target"), BeamEnd);
-					}
-				}
+				Beam->SetVectorParameter(FName("Target"), BeamEnd);
 			}
 		}
 	}
 }
+
+FVector AHitScanWeapon::TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget)
+{
+	//목표까지의 방향 벡터
+	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
+	//방향으로 DistanceToSphere만큼 떨어진 거리, 구의 중심점
+	FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
+	//랜덤 벡터(구 내의 한 점)
+	FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+	//구의 중심점 + 랜덤 벡터(구 내부에 존재하는 랜덤 지점)
+	FVector EndLoc = SphereCenter + RandVec;
+	//시작점에서 랜덤 지점으로 향하는 벡터
+	FVector ToEndLoc = EndLoc - TraceStart;
+
+	//탄착군 디버그 용
+	/*
+	DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
+	DrawDebugSphere(GetWorld(), EndLoc, 4.f, 12, FColor::Orange, true);
+	DrawDebugLine(
+		GetWorld(),
+		TraceStart,
+		FVector(TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size() ),
+		FColor::Cyan,
+		true);*/
+
+	return FVector(TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size());
+}
+
+

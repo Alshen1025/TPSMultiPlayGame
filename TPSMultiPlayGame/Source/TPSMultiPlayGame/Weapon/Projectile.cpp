@@ -7,6 +7,7 @@
 #include "Sound/SoundCue.h"
 #include "TPSMultiPlayGame/Public/Character/TPSCharacter.h"
 #include "TPSMultiPlayGame/TPSMultiPlayGame.h"
+#include "NiagaraFunctionLibrary.h"
 
 
 // Sets default values
@@ -49,6 +50,24 @@ void AProjectile::BeginPlay()
 
 }
 
+void AProjectile::SpawnTrailSystem()
+{
+	//나이아가라 관련
+	if (TrailSystem)
+	{
+		TrailSystemComponent = UNiagaraFunctionLibrary::SpawnSystemAttached
+		(
+			TrailSystem,
+			GetRootComponent(),
+			FName(),
+			GetActorLocation(),
+			GetActorRotation(),
+			EAttachLocation::KeepWorldPosition,
+			false
+		);
+	}
+}
+
 void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	Destroy();
@@ -57,6 +76,49 @@ void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimi
 void AProjectile::Tick(float DeltaTime)
 {
 
+}
+
+void AProjectile::StartDestroyTimer()
+{
+	GetWorldTimerManager().SetTimer
+	(
+		DestroyTimer,
+		this,
+		&AProjectile::DestroyTimerFinished,
+		DestroyTime
+	);
+}
+
+void  AProjectile::DestroyTimerFinished()
+{
+	Destroy();
+}
+
+void AProjectile::ExplodeDamage()
+{
+	//이 로켓을 소유한(발사한) 폰
+	APawn* FiringPawn = GetInstigator();
+	if (FiringPawn && HasAuthority())
+	{
+		AController* FiringController = FiringPawn->GetController();
+		if (FiringController)
+		{
+			UGameplayStatics::ApplyRadialDamageWithFalloff
+			(
+				this,
+				Damage,
+				10.0f,
+				GetActorLocation(),
+				DamageInnerRadius,
+				DamageOuterRadius,
+				1.f,
+				UDamageType::StaticClass(),
+				TArray<AActor*>(),
+				this,
+				FiringController
+			);
+		}
+	}
 }
 
 void AProjectile::Destroyed()

@@ -39,6 +39,11 @@ public:
 	UPROPERTY(Replicated)
 	bool bDisableGameplay = false;
 	FORCEINLINE bool GetDisableGameplay() const { return bDisableGameplay; }
+
+	//Sniper Scope블루프린트 위젯
+	//블루 프린트에서 구현 가능
+	UFUNCTION(BlueprintImplementableEvent)
+	void ShowSniperScopeWidget(bool bShowScope);
 	
 
 protected:

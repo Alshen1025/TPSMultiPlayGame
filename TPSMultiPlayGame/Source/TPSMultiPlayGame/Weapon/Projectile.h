@@ -18,6 +18,13 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	
+	UPROPERTY(EditAnywhere)
+	class UNiagaraSystem* TrailSystem;
+
+	UPROPERTY()
+	class UNiagaraComponent* TrailSystemComponent;
+
+	void SpawnTrailSystem();
 
 	UFUNCTION()//                                                                                                              <표면으로 향하는 벡터 방향(3D에서 수직을 의미)>
 	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector  NormalImpulse, const FHitResult& Hit);
@@ -34,6 +41,22 @@ protected:
 	UPROPERTY(EditAnywhere)
 	class UBoxComponent* CollisionBox;
 
+	void StartDestroyTimer();
+	void DestroyTimerFinished();
+
+	void ExplodeDamage();
+
+	//로켓 매시
+	UPROPERTY(VisibleAnywhere)
+	UStaticMeshComponent* ProjectileMesh;
+
+	//폭발 반경
+	UPROPERTY(EditAnywhere)
+	float DamageInnerRadius = 200.f;
+
+	UPROPERTY(EditAnywhere)
+	float DamageOuterRadius = 500.f;
+
 protected:
 	UPROPERTY(VisibleAnywhere)
 	class UProjectileMovementComponent* ProjectileMovementComponent;
@@ -43,7 +66,12 @@ public:
 
 private:
 
-	
+	//나이아가라 파괴관련
+	FTimerHandle DestroyTimer;
+
+	UPROPERTY(EditAnywhere)
+	float DestroyTime = 3.f;
+	//
 
 	UPROPERTY(EditAnywhere)
 	class UParticleSystem* Tracer;
