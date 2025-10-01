@@ -44,7 +44,6 @@ AWeapon::AWeapon()
 	PickupWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("PickupWidget"));
 	PickupWidget->SetupAttachment(RootComponent);
 }
-
 void AWeapon::BeginPlay()
 {
 	Super::BeginPlay();
@@ -53,7 +52,6 @@ void AWeapon::BeginPlay()
 		PickupWidget->SetVisibility(false);
 	}
 }
-
 void AWeapon::ShowPickupWidget(bool bShowWidget)
 {
 	if (PickupWidget)
@@ -61,7 +59,6 @@ void AWeapon::ShowPickupWidget(bool bShowWidget)
 		PickupWidget->SetVisibility(bShowWidget);
 	}
 }
-
 void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -69,8 +66,6 @@ void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 	DOREPLIFETIME(AWeapon, WeaponState);
 	DOREPLIFETIME(AWeapon, Ammo);
 }
-
-
 void AWeapon::Fire(const FVector& HitTarget)
 {
 	if (FireAnimation)
@@ -95,10 +90,12 @@ void AWeapon::Fire(const FVector& HitTarget)
 			}
 		}
 	}
-	SpendRound();
+	if (HasAuthority())
+	{
+		SpendRound();
+	}
+	
 }
-
-
 void AWeapon::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 
@@ -108,7 +105,6 @@ void AWeapon::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* 
 		TPSCharacter->SetOverlappingWeapon(this);
 	}
 }
-
 void AWeapon::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
 	ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(OtherActor);
@@ -167,13 +163,11 @@ void AWeapon::OnRep_WeaponState()
 		break;
 	}
 }
-
 //총기 탄약 소모
 void AWeapon::OnRep_Ammo()
 {
 	SetHUDAmmo();
 }
-
 //무기 장착시(Owner가 설정되면) 탄약 관련 처리
 void AWeapon::OnRep_Owner()
 {
@@ -189,20 +183,16 @@ void AWeapon::OnRep_Owner()
 	}
 	
 }
-
-
 void AWeapon::SpendRound()
 {
 	Ammo = FMath::Clamp(Ammo - 1, 0, MagCapacity);
 	SetHUDAmmo();
 }
-
 void AWeapon::AddAmmo(int32 AmmoToAdd)
 {
 	Ammo = FMath::Clamp(Ammo - AmmoToAdd, 0, MagCapacity);
 	SetHUDAmmo();
 }
-
 void AWeapon::SetHUDAmmo()
 {
 	TPSOwnerCharacter = TPSOwnerCharacter == nullptr ? Cast<ATPSCharacter>(GetOwner()) : TPSOwnerCharacter;
@@ -215,23 +205,15 @@ void AWeapon::SetHUDAmmo()
 		}
 	}
 }
-
 bool AWeapon::IsEmpty()
 {
 	return Ammo <= 0;
 }
-
-//
-
-// Called every frame
 void AWeapon::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
 }
-
-
-
 //무기 드랍
 void AWeapon::Dropped()
 {

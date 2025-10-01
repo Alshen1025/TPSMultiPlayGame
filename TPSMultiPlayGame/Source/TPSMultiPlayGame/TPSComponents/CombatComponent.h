@@ -31,6 +31,10 @@ public:
 
 	void FireButtonPressed(bool bPressed);
 
+	//탄약 보충
+	void PickupAmmo(EWeaponType Weapon, int32 AmmoAmount);
+
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -69,8 +73,13 @@ protected:
 
 
 private:
+	UPROPERTY()
 	ATPSCharacter* Character;
+
+	UPROPERTY()
 	class ATPSPlayerController* Controller;
+
+	UPROPERTY()
 	class ATPSHUD* HUD;
 
 	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon)
@@ -157,7 +166,11 @@ private:
 	void OnRep_CombatState();
 
 	void UpdateAmmoValues();
+	void UpdateCarriedAmmo();
 
-	public:
+	
+	//소유 가능한 최대 탄약
+	UPROPERTY(EditAnywhere)
+	int32 MaxCarriedAmmo = 100;
 		
 };

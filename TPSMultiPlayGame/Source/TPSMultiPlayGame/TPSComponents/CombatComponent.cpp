@@ -23,7 +23,6 @@ UCombatComponent::UCombatComponent()
 	bCanFire = true;
 	// ...
 }
-
 void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -52,7 +51,6 @@ void UCombatComponent::BeginPlay()
 		}
 	}
 }
-
 void UCombatComponent::SetAiming(bool bIsAiming)
 {
 	if (Character == nullptr || EquippedWeapon == nullptr) return;
@@ -67,7 +65,6 @@ void UCombatComponent::SetAiming(bool bIsAiming)
 		Character->ShowSniperScopeWidget(bIsAiming);
 	}
 }
-
 void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 {
 	bAiming = bIsAiming;
@@ -76,8 +73,6 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 		Character->GetCharacterMovement()->MaxWalkSpeed = bIsAiming ? AimWalkSpeed : BaseWalkSpeed;
 	}
 }
-
-
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -91,8 +86,6 @@ void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		InterpFOV(DeltaTime);
 	}
 }
-
-
 void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 {
 	if (Character == nullptr || WeaponToEquip == nullptr) return;
@@ -113,16 +106,7 @@ void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 	}
 	EquippedWeapon->SetOwner(Character);
 	EquippedWeapon->SetHUDAmmo();
-	//휴대 탄약
-	if (CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
-	{
-		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
-	}
-	Controller = Controller == nullptr ? Cast<ATPSPlayerController>(Character->Controller) : Controller;
-	if (Controller)
-	{
-		Controller->SetHUDCarriedAmmo(CarriedAmmo);
-	}
+	UpdateCarriedAmmo();
 	//장착 사운드
 	if (EquippedWeapon->EquipSound)
 	{
@@ -143,7 +127,6 @@ void UCombatComponent::EquipWeapon(AWeapon* WeaponToEquip)
 	Character->GetCharacterMovement()->bOrientRotationToMovement = false;
 	Character->bUseControllerRotationYaw = true;
 }
-
 void UCombatComponent::OnRep_EquippedWeapon()
 {
 	if (EquippedWeapon && Character)
@@ -167,7 +150,6 @@ void UCombatComponent::OnRep_EquippedWeapon()
 		}
 	}
 }
-
 //재장전 관련
 void UCombatComponent::SeverReload_Implementation()
 {
@@ -196,7 +178,21 @@ void UCombatComponent::UpdateAmmoValues()
 	}
 	EquippedWeapon->AddAmmo(-ReloadAmount);
 }
+void UCombatComponent::UpdateCarriedAmmo()
+{
+	if (EquippedWeapon == nullptr) return;
+	//휴대 탄약
+	if (CarriedAmmoMap.Contains(EquippedWeapon->GetWeaponType()))
+	{
+		CarriedAmmo = CarriedAmmoMap[EquippedWeapon->GetWeaponType()];
+	}
+	Controller = Controller == nullptr ? Cast<ATPSPlayerController>(Character->Controller) : Controller;
 
+	if (Controller)
+	{
+		Controller->SetHUDCarriedAmmo(CarriedAmmo);
+	}
+}
 void UCombatComponent::FinishReload()
 {
 	if (Character == nullptr) return;
@@ -216,8 +212,6 @@ void UCombatComponent::HandleReload()
 {
 	Character->PlayReloadMontage();
 }
-
-
 void UCombatComponent::Reload()
 {
 	if (EquippedWeapon == nullptr) return;
@@ -229,7 +223,6 @@ void UCombatComponent::Reload()
 		SeverReload();
 	}
 }
-
 int32 UCombatComponent::AmountToReload()
 {
 	if (EquippedWeapon == nullptr) return 0;
@@ -261,7 +254,6 @@ int32 UCombatComponent::AmountToReload()
 /// 
 void UCombatComponent::Fire()
 {
-	UE_LOG(LogTemp, Warning, TEXT("bCanFire: %s"), bCanFire ? TEXT("true") : TEXT("false"));
 	if (CanFire())
 	{
 		bCanFire = false;
@@ -273,8 +265,22 @@ void UCombatComponent::Fire()
 		StartFireTimer();
 	}
 }
-
-
+//MulticastRPC
+//서버에서 호출하면 서버, 크라이언트에서 모두 실행되는 함수
+void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+{
+	if (EquippedWeapon == nullptr) return;
+	if (Character && CombatState == ECombatState::ECS_Unoccupied)
+	{
+		Character->PlayFireMontage(bAiming);
+		EquippedWeapon->Fire(TraceHitTarget);
+	}
+}
+void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+{
+	UE_LOG(LogTemp, Warning, TEXT("5. ServerFire_Implementation() Executed on SERVER."));
+	MulticastFire(TraceHitTarget);
+}
 void UCombatComponent::StartFireTimer()
 {
 	if (EquippedWeapon == nullptr || Character == nullptr) return;
@@ -308,22 +314,20 @@ void UCombatComponent::FireButtonPressed(bool bPressed)
 	}
 	
 }
-//MulticastRPC
-//서버에서 호출하면 서버, 크라이언트에서 모두 실행되는 함수
-void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+
+
+//탄약 보충 함수
+void UCombatComponent::PickupAmmo(EWeaponType Weapon, int32 AmmoAmount)
 {
-	if (EquippedWeapon == nullptr) return;
-	if (Character && CombatState == ECombatState::ECS_Unoccupied)
+	if (CarriedAmmoMap.Contains(Weapon))
 	{
-		Character->PlayFireMontage(bAiming);
-		EquippedWeapon->Fire(TraceHitTarget);
+		CarriedAmmoMap[Weapon] = FMath::Clamp(CarriedAmmoMap[Weapon] + AmmoAmount, 0 , MaxCarriedAmmo);
+		UpdateCarriedAmmo();
 	}
 }
-void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
-{
-	UE_LOG(LogTemp, Warning, TEXT("5. ServerFire_Implementation() Executed on SERVER."));
-	MulticastFire(TraceHitTarget);
-}
+
+
+
 
 bool UCombatComponent::CanFire()
 {

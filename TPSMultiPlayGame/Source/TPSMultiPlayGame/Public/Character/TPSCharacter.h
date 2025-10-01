@@ -44,6 +44,11 @@ public:
 	//블루 프린트에서 구현 가능
 	UFUNCTION(BlueprintImplementableEvent)
 	void ShowSniperScopeWidget(bool bShowScope);
+
+
+
+	void UpdateHUDHealth();
+	void UpdateHUDShield();
 	
 
 protected:
@@ -102,7 +107,7 @@ protected:
 	void CalculateAO_Pitch();
 
 /// <summary>
-///  플레이어 HP
+///  플레이어 HP && 쉴드
 /// </summary>
 	
 	UPROPERTY(EditAnywhere, Category = "PlayerStats")
@@ -110,11 +115,24 @@ protected:
 
 	UPROPERTY(ReplicatedUsing = OnRep_Health, VisibleAnywhere, Category = "PlayerStats")
 	float Health = 100.f;
+
+	UPROPERTY(EditAnywhere, Category = "Player Stats")
+	float MaxShield = 100.f;
+
+	UPROPERTY(ReplicatedUsing = OnRep_Shield, EditAnywhere, Category = "Player Stats")
+	float Shield = 0.f;
+
 	UFUNCTION()
-	void OnRep_Health();
+	void OnRep_Shield(float LastShield);
+
+	//OnRep에 인자를 추가하면 자동으로 이전 값을 넣어줌
+	UFUNCTION()
+	void OnRep_Health(float LastHealth);
+
+	
 	UFUNCTION()
 	void ReciveDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, class AController* InstigatorController, AActor* DamageCauser);
-	void UpdateHUDHealth();
+	
 
 	UPROPERTY()
 	class ATPSPlayerController* TPSPlayerController;
@@ -147,6 +165,9 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UCombatComponent* Combat;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	class UBuffComponent* Buff;
 
 	//AimOffset 관련 변수
 	float AO_Yaw;
@@ -192,8 +213,17 @@ public:
 
 	FORCEINLINE bool GetIsEliminated() const { return bEliminated;  }
 
+	//
 	FORCEINLINE float GetHealth() const { return Health; }
+	FORCEINLINE void SetHealth(float Amount) { Health = Amount; }
 	FORCEINLINE float GetMaxHealth() const { return MaxHealth; }
+
+	FORCEINLINE float GetShield() const { return Shield; }
+
+	FORCEINLINE void SetShield(float Amount) { Shield = Amount; }
+
+	FORCEINLINE float GetMaxShield() const { return MaxShield; }
+	//
 	ECombatState GetCombatState() const;
 
  
@@ -243,6 +273,8 @@ public:
 	//CombatComponent Gatter
 	FORCEINLINE UCombatComponent* GetCombat() const { return Combat; }
 	
+	//BuffComponentGetter
+	FORCEINLINE UBuffComponent* GetBuff() const { return Buff; }
 
 
 	//플레이어 리스폰 관련

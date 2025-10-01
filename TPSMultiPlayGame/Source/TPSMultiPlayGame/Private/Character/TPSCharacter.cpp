@@ -11,6 +11,7 @@
 #include "TPSMultiPlayGame/Weapon/Weapon.h"
 #include "Net/UnrealNetwork.h"
 #include "TPSMultiPlayGame/TPSComponents/CombatComponent.h"
+#include "TPSMultiPlayGame/TPSComponents/BuffComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Character/TPSAnimInstance.h"
@@ -42,6 +43,10 @@ ATPSCharacter::ATPSCharacter()
 
 	Combat = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
 	Combat->SetIsReplicated(true);
+
+	//Buff컴포넌트
+	Buff = CreateDefaultSubobject<UBuffComponent>(TEXT("BuffComponent"));
+	Buff->SetIsReplicated(true);
 
 	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
@@ -103,11 +108,12 @@ void ATPSCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	
+	UpdateHUDShield();
+	UpdateHUDHealth();
+
 	TPSPlayerController = Cast<ATPSPlayerController>(Controller);
 	if (TPSPlayerController)
 	{
-		TPSPlayerController->SetHUDHealth(Health, MaxHealth);
 		UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(TPSPlayerController->GetLocalPlayer());
 		if (Subsystem)
 		{
@@ -198,6 +204,7 @@ void ATPSCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLif
 	//무기에 Overlapping된 클라이언트와 서버에만 복제
 	DOREPLIFETIME_CONDITION(ATPSCharacter, OverlappingWeapon, COND_OwnerOnly);
 	DOREPLIFETIME(ATPSCharacter, Health);
+	DOREPLIFETIME(ATPSCharacter, Shield);
 	DOREPLIFETIME(ATPSCharacter, bDisableGameplay);
 }
 
@@ -208,6 +215,11 @@ void ATPSCharacter::PostInitializeComponents()
 	{
 		Combat->Character = this;
 	}
+	if (Buff)
+	{
+		Buff->Character = this;
+	}
+
 }
 
 //애니메이션 관련
@@ -325,7 +337,6 @@ void ATPSCharacter::FireButtonReleased()
 		Combat->FireButtonPressed(false);
 	}
 }
-
 void ATPSCharacter::Jump()
 {
 	if (bDisableGameplay) return;;
@@ -338,9 +349,7 @@ void ATPSCharacter::Jump()
 		Super::Jump();
 	}
 }
-
 //
-
 
 // 무기 장착 관련
 void ATPSCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
@@ -372,8 +381,6 @@ void ATPSCharacter::EquipButtonPressed()
 		}
 	}
 }
-
-
 
 AWeapon* ATPSCharacter::GetEquippedWeapon()
 {
@@ -421,8 +428,6 @@ void ATPSCharacter::PlayReloadMontage()
 		AnimInstace->Montage_JumpToSection(SectionName);
 	}
 }
-
-
 
 void ATPSCharacter::SetOverlappingWeapon(AWeapon* Weapon)
 {
@@ -570,11 +575,20 @@ void ATPSCharacter::CalculateAO_Pitch()
 	}
 }
 
+void ATPSCharacter::OnRep_Shield(float LastShield)
+{
+	UpdateHUDShield();
+	if (Shield < LastShield)
+	{
+		PlayHitReactMontage();
+	}
+}
+
 //플레이어 HP
-void ATPSCharacter::OnRep_Health()
+void ATPSCharacter::OnRep_Health(float LastHealth)
 {
 	UpdateHUDHealth();
-	if (!bEliminated)
+	if (!bEliminated && Health < LastHealth)
 	{
 		PlayHitReactMontage();
 	}
@@ -583,7 +597,27 @@ void ATPSCharacter::OnRep_Health()
 
 void ATPSCharacter::ReciveDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
 {
-	Health = FMath::Clamp(Health - Damage, 0.f, MaxHealth);
+	//체력계산 - 실드 적용
+	float DamageToHealth = Damage;
+	if (Shield > 0.f)
+	{
+		if (Shield >= Damage)
+		{
+			Shield = FMath::Clamp(Shield - Damage, 0.f, MaxShield);
+			DamageToHealth = 0.f;
+		}
+		else
+		{
+			Shield = 0.f;
+			DamageToHealth = FMath::Clamp(DamageToHealth - Shield, 0.f, Damage);
+		}
+	}
+	Health = FMath::Clamp(Health - DamageToHealth, 0.f, MaxHealth);
+
+	UpdateHUDHealth();
+	UpdateHUDShield();
+	PlayHitReactMontage();
+
 	if(Health > 0.f)
 	{
 		PlayHitReactMontage();	
@@ -598,7 +632,6 @@ void ATPSCharacter::ReciveDamage(AActor* DamagedActor, float Damage, const UDama
 			TPSGameMode->EliminatePlayer(this, TPSPlayerController, AttackerController);
 		}
 	}
-	UpdateHUDHealth();
 	
 }
 
@@ -608,6 +641,15 @@ void ATPSCharacter::UpdateHUDHealth()
 	if (TPSPlayerController)
 	{
 		TPSPlayerController->SetHUDHealth(Health, MaxHealth);
+	}
+}
+
+void ATPSCharacter::UpdateHUDShield()
+{
+	TPSPlayerController = TPSPlayerController == nullptr ? Cast<ATPSPlayerController>(Controller) : TPSPlayerController;
+	if (TPSPlayerController)
+	{
+		TPSPlayerController->SetHUDShield(Shield, MaxShield);
 	}
 }
 

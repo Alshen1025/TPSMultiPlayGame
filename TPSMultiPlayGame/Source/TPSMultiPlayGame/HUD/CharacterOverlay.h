@@ -22,6 +22,16 @@ public:
 
 	UPROPERTY(meta = (BindWidget))
 	class UTextBlock* HealthText;
+	//
+	
+	//플레이어 쉴드
+	UPROPERTY(meta = (BindWidget))
+	UProgressBar* ShieldBar;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* ShieldText;
+
+	//
 
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* ScoreAmount;
@@ -37,4 +47,12 @@ public:
 
 	UPROPERTY(meta = (BindWidget))
 	UTextBlock* MatchCountdownText;
+
+	//핑 표시
+	UPROPERTY(meta = (BindWidget))
+	class UImage* HighPingImage;
+
+	//Transient-> 저장이 필요 없는 데이터를 표시할 때 사용
+	UPROPERTY(meta = (BindWidgetAnim), Transient)
+	UWidgetAnimation* HighPingAnimation;
 };

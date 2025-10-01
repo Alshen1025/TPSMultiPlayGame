@@ -14,6 +14,7 @@
 #include "TPSMultiPlayGame/TPSComponents/CombatComponent.h"
 #include "TPSMultiPlayGame/GameState/TPSGameState.h"
 #include "TPSMultiPlayGame/PlayerState/TPSPlayerState.h"
+#include "Components/Image.h"
 
 void ATPSPlayerController::BeginPlay()
 {
@@ -21,22 +22,52 @@ void ATPSPlayerController::BeginPlay()
 	TPSHUD = Cast<ATPSHUD>(GetHUD());
 	ServerCheckMatchState();
 }
-
-
 void ATPSPlayerController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	SetHUDTime();
 	CheckTimeSync(DeltaTime);
 	PollInit();
+	CheckPing(DeltaTime);
+	
 }
-
+void ATPSPlayerController::CheckPing(float DeltaTime)
+{
+	HighPingRunningTime += DeltaTime;
+	if (HighPingRunningTime > CheckPingFrequency)
+	{
+		if (PlayerState == nullptr)
+		{
+			PlayerState = GetPlayerState<APlayerState>();
+		}
+		if (PlayerState)
+		{
+			//1/4로 압축된 핑이기 때문에 *4를 해야 원래 핑이 됨
+			if (PlayerState->GetCompressedPing() * 4 > HighPingThreshold)
+			{
+				HighPingWarning();
+				PingAnimationRunningTime = 0.f;
+			}
+		}
+	}
+	bool bHighPingAnimationPlaying =
+		TPSHUD && TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->HighPingAnimation &&
+		TPSHUD->CharacterOverlay->IsAnimationPlaying(TPSHUD->CharacterOverlay->HighPingAnimation);
+	if (bHighPingAnimationPlaying)
+	{
+		PingAnimationRunningTime += DeltaTime;
+		if (PingAnimationRunningTime > HighPingDuration)
+		{
+			StopHighPingWarning();
+		}
+	}
+}
 void ATPSPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATPSPlayerController, MatchState);
 }
-
 void ATPSPlayerController::CheckTimeSync(float DeltaTime)
 {
 	TimeSyncRunningTime += DeltaTime;
@@ -47,7 +78,6 @@ void ATPSPlayerController::CheckTimeSync(float DeltaTime)
 	}
 	
 }
-
 void ATPSPlayerController::PollInit()
 {
 	if (CharacterOverlay == nullptr)
@@ -57,16 +87,14 @@ void ATPSPlayerController::PollInit()
 			CharacterOverlay = TPSHUD->CharacterOverlay;
 			if (CharacterOverlay)
 			{
-				SetHUDHealth(HUDHealth, HUDMaxHealth);
-				SetHUDScore(HUDScore);
-				SetHUDDefeats(HUDDefeats);
+				if (bInitializeHealth) SetHUDHealth(HUDHealth, HUDMaxHealth);
+				if (bInitializeShield) SetHUDShield(HUDShield, HUDMaxShield);
+				if (bInitializeScore) SetHUDScore(HUDScore);
+				if (bInitializeDefeats) SetHUDDefeats(HUDDefeats);
 			}
 		}
 	}
 }
-
-
-
 void ATPSPlayerController::SetHUDTime()
 {
 	//매치 상태에 따라 남은시간이 다름
@@ -92,8 +120,41 @@ void ATPSPlayerController::SetHUDTime()
 	CountdownInt = SecondsLeft;
 }
 
+void ATPSPlayerController::HighPingWarning()
+{
+	//HighPing 이미지와 애니메이션 표시
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
 
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->HighPingImage &&
+		TPSHUD->CharacterOverlay->HighPingAnimation;
+	if (bHUDValid)
+	{
+		TPSHUD->CharacterOverlay->HighPingImage->SetOpacity(1.0f);
+		TPSHUD->CharacterOverlay->PlayAnimation(TPSHUD->CharacterOverlay->HighPingAnimation, 0.f, 5);
+	}
+}
 
+void ATPSPlayerController::StopHighPingWarning()
+{
+	//HighPing 이미지와 애니메이션 숨기기
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
+
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->HighPingImage &&
+		TPSHUD->CharacterOverlay->HighPingAnimation;
+	if (bHUDValid)
+	{
+		TPSHUD->CharacterOverlay->HighPingImage->SetOpacity(0.0f);
+		if (TPSHUD->CharacterOverlay->IsAnimationPlaying(TPSHUD->CharacterOverlay->HighPingAnimation))
+		{
+			//애니메이션 정지
+			TPSHUD->CharacterOverlay->StopAnimation(TPSHUD->CharacterOverlay->HighPingAnimation);
+		}
+	}
+}
 
 float ATPSPlayerController::GetServerTime()
 {
@@ -222,8 +283,6 @@ void ATPSPlayerController::HandleCooldown()
 		TPSCharacter->GetCombat()->FireButtonPressed(false);
 	}
 }
-
-
 void ATPSPlayerController::OnRep_MatchState()
 {
 	
@@ -238,7 +297,6 @@ void ATPSPlayerController::OnRep_MatchState()
 	
 	
 }
-
 void ATPSPlayerController::ServerCheckMatchState_Implementation()
 {
 	ATPSGameMode* Gamemode = Cast<ATPSGameMode>(UGameplayStatics::GetGameMode(this));
@@ -252,7 +310,6 @@ void ATPSPlayerController::ServerCheckMatchState_Implementation()
 		ClientJoinMidGame(MatchState, WarmupTime, MatchTime, LevelStartingTime, CooldownTime);
 	}
 }
-
 void ATPSPlayerController::ClientJoinMidGame_Implementation(FName StateOfMatch, float Warmup, float Match, float StartingTime, float Cooldown)
 {
 	MatchState = StateOfMatch;
@@ -266,7 +323,6 @@ void ATPSPlayerController::ClientJoinMidGame_Implementation(FName StateOfMatch, 
 		TPSHUD->AddAnnouncement();
 	}
 }
-
 //
 void ATPSPlayerController::SetHUDHealth(float Health, float MaxHealth)
 {
@@ -285,9 +341,32 @@ void ATPSPlayerController::SetHUDHealth(float Health, float MaxHealth)
 	}
 	else
 	{
-		bInitializeCharacterOverlay = true;
+		bInitializeHealth = true;
 		HUDHealth = Health;
 		HUDMaxHealth = MaxHealth;
+	}
+}
+
+void ATPSPlayerController::SetHUDShield(float Shield, float MaxShield)
+{
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
+
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->ShieldBar &&
+		TPSHUD->CharacterOverlay->ShieldText;
+	if (bHUDValid)
+	{
+		const float ShieldPercent = Shield / MaxShield;
+		TPSHUD->CharacterOverlay->ShieldBar->SetPercent(ShieldPercent);
+		FString ShieldText = FString::Printf(TEXT("%d/%d"), FMath::CeilToInt(Shield), FMath::CeilToInt(MaxShield));
+		TPSHUD->CharacterOverlay->ShieldText->SetText(FText::FromString(ShieldText));
+	}
+	else
+	{
+		bInitializeShield = true;
+		HUDHealth = Shield;
+		HUDMaxHealth = MaxShield;
 	}
 }
 
@@ -304,7 +383,7 @@ void ATPSPlayerController::SetHUDScore(float Score)
 	}
 	else
 	{
-		bInitializeCharacterOverlay = true;
+		bInitializeScore = true;
 		HUDScore = Score;
 	}
 
@@ -323,7 +402,7 @@ void ATPSPlayerController::SetHUDDefeats(int32 Defeats)
 	}
 	else
 	{
-		bInitializeCharacterOverlay = true;
+		bInitializeDefeats = true;
 		HUDDefeats = Defeats;
 	}
 }

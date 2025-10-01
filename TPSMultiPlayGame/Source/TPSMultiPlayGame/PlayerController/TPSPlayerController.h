@@ -16,6 +16,7 @@ class TPSMULTIPLAYGAME_API ATPSPlayerController : public APlayerController
 	
 public:
 	void SetHUDHealth(float Health, float MaxHealth);
+	void SetHUDShield(float Shield, float MaxShield);
 	void SetHUDScore(float Score);
 	void SetHUDDefeats(int32 Defeats);
 	void SetHUDWeaponAmmo(int32 WeaponAmmo);
@@ -66,6 +67,11 @@ protected:
 	UFUNCTION(Client, Reliable)
 	void ClientJoinMidGame(FName StateOfMatch, float Warmup, float Match, float StartingTime, float Cooldown);
 
+	//Ping관련 경고
+	void HighPingWarning();
+	void StopHighPingWarning();
+	void CheckPing(float DeltaTime);
+
 public:
 	
 	virtual float GetServerTime(); //서버의 시간으로 동기화
@@ -100,13 +106,34 @@ private:
 
 	UPROPERTY()
 	class UCharacterOverlay* CharacterOverlay;
-	bool bInitializeCharacterOverlay = false;
 
+	bool bInitializeHealth = false;
+	bool bInitializeScore = false;
+	bool bInitializeDefeats = false;
+	bool bInitializeShield = false;
+
+	//HUD
 	float HUDHealth;
 	float HUDMaxHealth;
 	float HUDScore;
 	int32 HUDDefeats;
+	float HUDShield;
+	float HUDMaxShield;
 
-	UPROPERTY()
-	class ATPSPlayerState* TPSGameMode;
+
+private:
+	//Ping관련
+	float HighPingRunningTime = 0.f;
+
+	UPROPERTY(EditAnywhere)
+	float HighPingDuration = 5.f;
+
+	float PingAnimationRunningTime = 0.f;
+
+	UPROPERTY(EditAnywhere)
+	float CheckPingFrequency = 3.0f;
+
+	UPROPERTY(EditAnywhere)
+	float HighPingThreshold = 50.f;
+
 };
