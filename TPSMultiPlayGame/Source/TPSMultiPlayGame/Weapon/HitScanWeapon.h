@@ -16,11 +16,12 @@ class TPSMULTIPLAYGAME_API AHitScanWeapon : public AWeapon
 	
 public:
 	virtual void Fire(const FVector& HitTarget) override;
+	
+	
+	
 
 protected:
 
-	//라인 트레이스 지점에 구를 만들고 그 안에서 몇 개의 지점 고르기
-	FVector TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget);
 
 	void WeaponTraceHit(const FVector& TraceStart, const FVector& HitTarget, FHitResult& OutHit);
 
@@ -44,19 +45,4 @@ private:
 
 	UPROPERTY(EditAnywhere)
 	USoundCue* FireSound;
-
-
-
-	/**
-	*탄착군 관련 변수들
-	*/
-	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	float DistanceToSphere = 800.f;
-
-	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	float SphereRadius = 75.f;
-
-	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
-	bool bUseScatter = false;
-
 };

@@ -7,11 +7,12 @@
 #include "Sound/SoundCue.h"
 #include "TPSMultiPlayGame/Public/Character/TPSCharacter.h"
 #include "Engine/SkeletalMeshSocket.h"
+#include "Kismet/KismetMathLibrary.h"
 
 
-void AShotgun::Fire(const FVector& HitTarget)
+void AShotgun::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
 {
-	AWeapon::Fire(HitTarget);
+	AWeapon::Fire(FVector());
 	APawn* OwnerPawn = Cast<APawn>(GetOwner());
 	if (OwnerPawn == nullptr) return;
 	AController* InstigatorController = OwnerPawn->GetController();
@@ -21,20 +22,17 @@ void AShotgun::Fire(const FVector& HitTarget)
 	{
 		FTransform SocketTransform = MuzzleFlashSocket->GetSocketTransform(GetWeaponMesh());
 		FVector Start = SocketTransform.GetLocation();
-		//산탄은 여러 데미지가 한번에 발생하므로 하나로 합친다음 전달
-		uint32 Hits = 0;
+
 		//샷건의 탄환이 여러 사람을 동시에 맞추는 경우 고려
 		TMap<ATPSCharacter*, uint32> HitMap;
-
-		for (uint32 i = 0; i < NumberOfPellets; i++)
+		for (FVector_NetQuantize HitTarget : HitTargets)
 		{
 			FHitResult FireHit;
-			//피격 판정
 			WeaponTraceHit(Start, HitTarget, FireHit);
-			ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(FireHit.GetActor());
 
+			ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(FireHit.GetActor());
 			//몇 발을 맞았는가
-			if (TPSCharacter && HasAuthority() && InstigatorController)
+			if (TPSCharacter)
 			{
 				if (HitMap.Contains(TPSCharacter))
 				{
@@ -44,25 +42,25 @@ void AShotgun::Fire(const FVector& HitTarget)
 				{
 					HitMap.Emplace(TPSCharacter, 1);
 				}
-			}
-			if (ImpactParticles)
-			{
-				UGameplayStatics::SpawnEmitterAtLocation(
-					GetWorld(),
-					ImpactParticles,
-					FireHit.ImpactPoint,
-					FireHit.ImpactNormal.Rotation()
-				);
-			}
-			if (HitSound)
-			{
-				UGameplayStatics::PlaySoundAtLocation(
-					this,
-					HitSound,
-					FireHit.ImpactPoint,
-					0.5f,
-					FMath::FRandRange(-0.5f, 0.5f)
-				);
+				if (ImpactParticles)
+				{
+					UGameplayStatics::SpawnEmitterAtLocation(
+						GetWorld(),
+						ImpactParticles,
+						FireHit.ImpactPoint,
+						FireHit.ImpactNormal.Rotation()
+					);
+				}
+				if (HitSound)
+				{
+					UGameplayStatics::PlaySoundAtLocation(
+						this,
+						HitSound,
+						FireHit.ImpactPoint,
+						0.5f,
+						FMath::FRandRange(-0.5f, 0.5f)
+					);
+				}
 			}
 		}
 		//각 플레이어가 맞은 탄환의 수 만큼 데미지 계산
@@ -80,5 +78,27 @@ void AShotgun::Fire(const FVector& HitTarget)
 				);
 			}
 		}
+	}
+}
+
+
+void AShotgun::ShotgunTraceEndWithScatter(const FVector & HitTarget, TArray<FVector_NetQuantize>&HitTargets)
+{
+	const USkeletalMeshSocket* MuzzleFlashSocket = GetWeaponMesh()->GetSocketByName("MuzzleFlash");
+	if (MuzzleFlashSocket == nullptr) return;
+
+	const FTransform SocketTransform = MuzzleFlashSocket->GetSocketTransform(GetWeaponMesh());
+	const FVector TraceStart = SocketTransform.GetLocation();
+
+	const FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
+	const FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
+
+	for (uint32 i = 0; i < NumberOfPellets; i++)
+	{
+		const FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+		const FVector EndLoc = SphereCenter + RandVec;
+		FVector ToEndLoc = EndLoc - TraceStart;
+		ToEndLoc = TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size();
+		HitTargets.Add(ToEndLoc);
 	}
 }

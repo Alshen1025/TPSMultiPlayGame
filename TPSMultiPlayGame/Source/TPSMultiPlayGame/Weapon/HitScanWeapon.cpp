@@ -26,9 +26,9 @@ void AHitScanWeapon::Fire(const FVector& HitTarget)
 	if (MuzzleFlashSocket)
 	{
 		FTransform SocketTransform = MuzzleFlashSocket->GetSocketTransform(GetWeaponMesh());
-		FHitResult FireHit;
 		FVector Start = SocketTransform.GetLocation();
 
+		FHitResult FireHit;
 		//라인 트레이스로 피격 판정
 		WeaponTraceHit(Start, HitTarget, FireHit);
 		//Damage주기
@@ -89,7 +89,7 @@ void AHitScanWeapon::WeaponTraceHit(const FVector& TraceStart, const FVector& Hi
 	if (World)
 	{
 		//탄착군 사용 여부에 따라 End지점 다르게 구하기
-		FVector End = bUseScatter ? TraceEndWithScatter(TraceStart, HitTarget)  : TraceStart + (HitTarget - TraceStart) * 1.25f;
+		FVector End = TraceStart + (HitTarget - TraceStart) * 1.25f;
 		World->LineTraceSingleByChannel
 		(
 			OutHit,
@@ -104,6 +104,7 @@ void AHitScanWeapon::WeaponTraceHit(const FVector& TraceStart, const FVector& Hi
 		{
 			BeamEnd = OutHit.ImpactPoint;
 		}
+		//DrawDebugSphere(GetWorld(), BeamEnd, 16.f , 12, FColor::Red, true);
 		if (BeamParticles)
 		{
 			UParticleSystemComponent* Beam = UGameplayStatics::SpawnEmitterAtLocation(
@@ -121,31 +122,5 @@ void AHitScanWeapon::WeaponTraceHit(const FVector& TraceStart, const FVector& Hi
 	}
 }
 
-FVector AHitScanWeapon::TraceEndWithScatter(const FVector& TraceStart, const FVector& HitTarget)
-{
-	//목표까지의 방향 벡터
-	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
-	//방향으로 DistanceToSphere만큼 떨어진 거리, 구의 중심점
-	FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
-	//랜덤 벡터(구 내의 한 점)
-	FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
-	//구의 중심점 + 랜덤 벡터(구 내부에 존재하는 랜덤 지점)
-	FVector EndLoc = SphereCenter + RandVec;
-	//시작점에서 랜덤 지점으로 향하는 벡터
-	FVector ToEndLoc = EndLoc - TraceStart;
-
-	//탄착군 디버그 용
-	/*
-	DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
-	DrawDebugSphere(GetWorld(), EndLoc, 4.f, 12, FColor::Orange, true);
-	DrawDebugLine(
-		GetWorld(),
-		TraceStart,
-		FVector(TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size() ),
-		FColor::Cyan,
-		true);*/
-
-	return FVector(TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size());
-}
 
 

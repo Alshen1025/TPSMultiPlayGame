@@ -83,10 +83,14 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	}
 
 	//재장전 중이면 FABRIK사용하지 않게 처리
-	bUseFABRIK = TPSCharacter->GetCombatState() != ECombatState::ECS_Reloading;
+	bUseFABRIK = TPSCharacter->GetCombatState() == ECombatState::ECS_Unoccupied;
+	if (TPSCharacter->IsLocallyControlled())
+	{
+		bUseFABRIK = !TPSCharacter->IsLocallyReloading();
+	}
 	//장전 중에 AimOffset사용하지 않게,                                                                        매치 상태에 따라 AimOffset 비활성화
-	bUseAimOffset = TPSCharacter->GetCombatState() != ECombatState::ECS_Reloading && !TPSCharacter->GetDisableGameplay();
+	bUseAimOffset = TPSCharacter->GetCombatState() == ECombatState::ECS_Unoccupied && !TPSCharacter->GetDisableGameplay();
 	//장전 중 오른손 회전 사용 X
-	bTransformRightHand = TPSCharacter->GetCombatState() != ECombatState::ECS_Reloading && !TPSCharacter->GetDisableGameplay();
+	bTransformRightHand = TPSCharacter->GetCombatState() == ECombatState::ECS_Unoccupied && !TPSCharacter->GetDisableGameplay();
 	
 }

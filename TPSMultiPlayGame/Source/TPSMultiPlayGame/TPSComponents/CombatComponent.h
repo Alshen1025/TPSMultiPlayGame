@@ -34,6 +34,8 @@ public:
 	//탄약 보충
 	void PickupAmmo(EWeaponType Weapon, int32 AmmoAmount);
 
+	//클라이언트 예측 - 재장전
+	bool bLocallyReloading = false;
 
 protected:
 	virtual void BeginPlay() override;
@@ -50,17 +52,24 @@ protected:
 
 	//FVector_NetQuantize사용이유 -> 발사체의 목표지점을 네트워크를 통해 전송
 	//클라이언트가 발사한 위치를 서버에 전송하고 다른 클라이언트에 복제하여 발사체를 동기화.
+
+	void Fire();
+	void FireProjectileWeapon();
+	void FireHitScan();
+	void FireShotgun();
 	UFUNCTION(Server, Reliable)
 	void ServerFire(const FVector_NetQuantize& TraceHitTarget);
-
+	UFUNCTION(Server, Reliable)
+	void ServerShotgunFire(const TArray<FVector_NetQuantize>& TraceHitTargets);
+	UFUNCTION(NetMulticast, Reliable)
+	void MultiCasatShotgunFire(const TArray<FVector_NetQuantize>& TraceHitTargets);
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastFire(const FVector_NetQuantize& TraceHitTarget);
-
+	void LocalFire(const  FVector_NetQuantize& TraceHitTarget);
+	void ShotgunLocalFire(const TArray<FVector_NetQuantize>& TraceHitTargets);
 	//피격 관련
 	void TraceUnderCrosshairs(FHitResult& TraceHitResult);
-
 	void SetHUDCrosshairs(float Deltatime);
-
 	//재장전
 	UFUNCTION(Server, Reliable)
 	void SeverReload();
@@ -68,7 +77,6 @@ protected:
 	void FinishReload();
 	void Reload();
 	void HandleReload();
-
 	int32 AmountToReload();
 
 
@@ -84,9 +92,14 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_EquippedWeapon)
 	AWeapon* EquippedWeapon;
+	//조준 중인가
+	UPROPERTY(ReplicatedUsing = OnRep_Aiming)
+	bool bAiming = false;
+	//조준 버튼을 클릭 하고 있는가
+	bool bAimButtonPressed = false;
 
-	UPROPERTY(Replicated)
-	bool bAiming;
+	UFUNCTION()
+	void OnRep_Aiming();
 
 	UPROPERTY(EditAnywhere)
 	float BaseWalkSpeed;
@@ -125,8 +138,6 @@ private:
 	bool bCanFire = true;
 	void StartFireTimer();
 	void FireTimerFinished();
-	void Fire();
-
 	bool CanFire();
 
 	UPROPERTY(ReplicatedUsing = OnRep_CarriedAmmo)

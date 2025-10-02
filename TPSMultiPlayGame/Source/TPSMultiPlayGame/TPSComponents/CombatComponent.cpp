@@ -3,6 +3,8 @@
 
 #include "CombatComponent.h"
 #include "TPSMultiPlayGame/Weapon/Weapon.h"
+#include "TPSMultiPlayGame/Weapon/HitScanWeapon.h"
+#include "TPSMultiPlayGame/Weapon/Shotgun.h"
 #include "TPSMultiPlayGame/Public/Character/TPSCharacter.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Net/UnrealNetwork.h"
@@ -14,6 +16,7 @@
 #include "TimerManager.h"
 #include "Camera/CameraComponent.h"
 #include "Sound/SoundCue.h"
+
 
 UCombatComponent::UCombatComponent()
 {
@@ -64,6 +67,8 @@ void UCombatComponent::SetAiming(bool bIsAiming)
 	{
 		Character->ShowSniperScopeWidget(bIsAiming);
 	}
+	//클라이언트 예측 - Aiming
+	if(Character->IsLocallyControlled()) bAimButtonPressed = bAiming;
 }
 void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 {
@@ -71,6 +76,14 @@ void UCombatComponent::ServerSetAiming_Implementation(bool bIsAiming)
 	if (Character)
 	{
 		Character->GetCharacterMovement()->MaxWalkSpeed = bIsAiming ? AimWalkSpeed : BaseWalkSpeed;
+	}
+}
+void UCombatComponent::OnRep_Aiming()
+{
+	//서버에서 복제된 변수(bAiming)을 확인하기 전까지 클라이언트 변수 bAimButtonPressed로 상태를 예측해서 미리 적용
+	if (Character && Character->IsLocallyControlled())
+	{
+		bAiming = bAimButtonPressed;
 	}
 }
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -151,15 +164,7 @@ void UCombatComponent::OnRep_EquippedWeapon()
 	}
 }
 //재장전 관련
-void UCombatComponent::SeverReload_Implementation()
-{
-	if (Character == nullptr || EquippedWeapon == nullptr) return;
 
-	
-	CombatState = ECombatState::ECS_Reloading;
-	HandleReload();
-	
-}
 
 void UCombatComponent::UpdateAmmoValues()
 {
@@ -176,7 +181,7 @@ void UCombatComponent::UpdateAmmoValues()
 	{
 		Controller->SetHUDCarriedAmmo(CarriedAmmo);
 	}
-	EquippedWeapon->AddAmmo(-ReloadAmount);
+	EquippedWeapon->AddAmmo(ReloadAmount);
 }
 void UCombatComponent::UpdateCarriedAmmo()
 {
@@ -193,9 +198,20 @@ void UCombatComponent::UpdateCarriedAmmo()
 		Controller->SetHUDCarriedAmmo(CarriedAmmo);
 	}
 }
+
+void UCombatComponent::SeverReload_Implementation()
+{
+	if (Character == nullptr || EquippedWeapon == nullptr) return;
+
+
+	CombatState = ECombatState::ECS_Reloading;
+	if(!Character->IsLocallyControlled()) HandleReload();
+
+}
 void UCombatComponent::FinishReload()
 {
 	if (Character == nullptr) return;
+	bLocallyReloading = false;
 	if (Character->HasAuthority())
 	{
 		CombatState = ECombatState::ECS_Unoccupied;
@@ -210,7 +226,11 @@ void UCombatComponent::FinishReload()
 }
 void UCombatComponent::HandleReload()
 {
-	Character->PlayReloadMontage();
+	if (Character)
+	{
+		Character->PlayReloadMontage();
+	}
+	
 }
 void UCombatComponent::Reload()
 {
@@ -218,9 +238,12 @@ void UCombatComponent::Reload()
 	//탄창에 빈 공간이 얼마나 되는지 계산
 	int32 RoomInMag = EquippedWeapon->GetMagCapacity() - EquippedWeapon->GetAmmo();
 	//보유 탄약이 존재 하고 재장전 중이 아닐때
-	if (CarriedAmmo > 0 && CombatState != ECombatState::ECS_Reloading)
+	if (CarriedAmmo > 0 && CombatState != ECombatState::ECS_Reloading && !bLocallyReloading)
 	{
 		SeverReload();
+		//재장전 애니메이션 바로 출력
+		HandleReload();
+		bLocallyReloading = true;
 	}
 }
 int32 UCombatComponent::AmountToReload()
@@ -247,6 +270,7 @@ int32 UCombatComponent::AmountToReload()
 	return 0;
 }
 
+
 ///
 ///          사격 관련
 ///
@@ -257,17 +281,78 @@ void UCombatComponent::Fire()
 	if (CanFire())
 	{
 		bCanFire = false;
-		ServerFire(HitTarget);
 		if (EquippedWeapon)
 		{
 			CrosshairShootingFactor = .75f;
+
+			switch (EquippedWeapon->FireType)
+			{
+			case EFireType::EFT_Projectile:
+				FireProjectileWeapon();
+				break;
+			case EFireType::EFT_HitScan:
+				FireHitScan();
+				break;
+			case EFireType::EFT_Shotgun:
+				FireShotgun();
+				break;
+			}
 		}
 		StartFireTimer();
 	}
 }
+void UCombatComponent::FireProjectileWeapon()
+{
+	if (EquippedWeapon && Character)
+	{
+		HitTarget = EquippedWeapon->bUseScatter ? EquippedWeapon->TraceEndWithScatter(HitTarget) : HitTarget;
+		if(!Character->HasAuthority()) LocalFire(HitTarget);
+		ServerFire(HitTarget);
+	}
+}
+void UCombatComponent::FireHitScan()
+{
+	if (EquippedWeapon && Character)
+	{
+		HitTarget = EquippedWeapon->bUseScatter ? EquippedWeapon->TraceEndWithScatter(HitTarget) : HitTarget;
+		if (!Character->HasAuthority()) LocalFire(HitTarget);
+		ServerFire(HitTarget);
+	}
+}
+void UCombatComponent::FireShotgun()
+{
+	AShotgun* Shotgun = Cast<AShotgun>(EquippedWeapon);
+	if (Shotgun && Character)
+	{
+		TArray<FVector_NetQuantize> HitTargets;
+		Shotgun->ShotgunTraceEndWithScatter(HitTarget, HitTargets);
+		if (!Character->HasAuthority()) ShotgunLocalFire(HitTargets);
+		ServerShotgunFire(HitTargets);
+	}
+}
+void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+{
+	MulticastFire(TraceHitTarget);
+}
 //MulticastRPC
 //서버에서 호출하면 서버, 크라이언트에서 모두 실행되는 함수
 void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+{
+	if (Character && Character->IsLocallyControlled() && !Character->HasAuthority()) return;
+	LocalFire(TraceHitTarget);
+}
+void UCombatComponent::ServerShotgunFire_Implementation(const TArray<FVector_NetQuantize>& TraceHitTargets)
+{
+	MultiCasatShotgunFire(TraceHitTargets);
+}
+void UCombatComponent::MultiCasatShotgunFire_Implementation(const TArray<FVector_NetQuantize>& TraceHitTargets)
+{
+	if (Character && Character->IsLocallyControlled() && !Character->HasAuthority()) return;
+	ShotgunLocalFire(TraceHitTargets);
+}
+//총기 발사 시 발사 애니메이션, 효과, 소리는 서버가 아니라 클라이언트에서 자체적으로 발생하도록 하고
+//총기 발사, 피격같은 핵심 로직만 서버에서 관리하도록
+void UCombatComponent::LocalFire(const FVector_NetQuantize& TraceHitTarget)
 {
 	if (EquippedWeapon == nullptr) return;
 	if (Character && CombatState == ECombatState::ECS_Unoccupied)
@@ -276,10 +361,16 @@ void UCombatComponent::MulticastFire_Implementation(const FVector_NetQuantize& T
 		EquippedWeapon->Fire(TraceHitTarget);
 	}
 }
-void UCombatComponent::ServerFire_Implementation(const FVector_NetQuantize& TraceHitTarget)
+void UCombatComponent::ShotgunLocalFire(const TArray<FVector_NetQuantize>& TraceHitTargets)
 {
-	UE_LOG(LogTemp, Warning, TEXT("5. ServerFire_Implementation() Executed on SERVER."));
-	MulticastFire(TraceHitTarget);
+	AShotgun* Shotgun = Cast<AShotgun>(EquippedWeapon);
+	if (Shotgun == nullptr || Character == nullptr) return;
+	if (CombatState == ECombatState::ECS_Reloading || CombatState == ECombatState::ECS_Unoccupied)
+	{
+		Character->PlayFireMontage(bAiming);
+		Shotgun->FireShotgun(TraceHitTargets);
+		CombatState = ECombatState::ECS_Unoccupied;
+	}
 }
 void UCombatComponent::StartFireTimer()
 {
@@ -291,7 +382,6 @@ void UCombatComponent::StartFireTimer()
 		EquippedWeapon->FireDelay
 	);
 }
-
 void UCombatComponent::FireTimerFinished()
 {
 	if (EquippedWeapon == nullptr) return;
@@ -314,8 +404,6 @@ void UCombatComponent::FireButtonPressed(bool bPressed)
 	}
 	
 }
-
-
 //탄약 보충 함수
 void UCombatComponent::PickupAmmo(EWeaponType Weapon, int32 AmmoAmount)
 {
@@ -325,17 +413,13 @@ void UCombatComponent::PickupAmmo(EWeaponType Weapon, int32 AmmoAmount)
 		UpdateCarriedAmmo();
 	}
 }
-
-
-
-
 bool UCombatComponent::CanFire()
 {
 	if (EquippedWeapon == nullptr) return false;
-	return (!EquippedWeapon->IsEmpty() && bCanFire && CombatState==ECombatState::ECS_Unoccupied/* && !Character->GetCharacterMovement()->IsFalling()*/);
+	if (bLocallyReloading) return false;
+	return (!EquippedWeapon->IsEmpty() && bCanFire && CombatState==ECombatState::ECS_Unoccupied  && !Character->GetCharacterMovement()->IsFalling());
 }
 ///
-
 ///사용자 휴대 탄약
 void UCombatComponent::OnRep_CarriedAmmo()
 {
@@ -345,7 +429,6 @@ void UCombatComponent::OnRep_CarriedAmmo()
 		Controller->SetHUDCarriedAmmo(CarriedAmmo);
 	}
 }
-
 void UCombatComponent::InitalizeCarriedAmmo()
 {
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_AssaultRifle, StartingARAmmo);
@@ -355,7 +438,6 @@ void UCombatComponent::InitalizeCarriedAmmo()
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_SniperRifle, StartingSniperAmmo);
 	CarriedAmmoMap.Emplace(EWeaponType::EWT_GrenadeLauncher, StartingGrenadeLauncherAmmo);
 }
-
 void UCombatComponent::OnRep_CombatState()
 {
 	switch (CombatState)
@@ -367,15 +449,13 @@ void UCombatComponent::OnRep_CombatState()
 		}
 		break;
 	case ECombatState::ECS_Reloading:
-		HandleReload();
+		if (Character && !Character->IsLocallyControlled()) HandleReload();
 		break;
 	case ECombatState::ECS_MAX:
 		break;
 	}
 }
-
 //
-
 //피격 판정 관련
 void UCombatComponent::TraceUnderCrosshairs(FHitResult& TraceHitResult)
 {

@@ -33,6 +33,9 @@ public:
 	//장착한 플레이어 사망 시 무기 드랍
 	void Dropped();
 
+	//라인 트레이스 지점에 구를 만들고 그 안에서 몇 개의 지점 고르기
+	FVector TraceEndWithScatter(const FVector& HitTarget);
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -43,6 +46,15 @@ protected:
 	UFUNCTION()
 	void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp,
 		int32 OtherBodyIndex);
+
+	/**
+	*탄착군 관련 변수들
+	*/
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float DistanceToSphere = 800.f;
+
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	float SphereRadius = 75.f;
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
@@ -76,10 +88,20 @@ private:
 
 	//장탄수 관련 변수
 	//가지고 있는 총 탄약 수
-	UPROPERTY(EditAnywhere, ReplicatedUsing = OnRep_Ammo)
+	UPROPERTY(EditAnywhere)
 	int32 Ammo;
-	UFUNCTION()
-	void OnRep_Ammo();
+
+	//처리되지 않은 서버의 요청 수 - > ClientAmmoUpdate에서 사용
+	//Client-Side Predicting
+	int32 Sequence = 0;
+
+	UFUNCTION(Client, Reliable)
+	void ClientUpdateAmmo(int32 ServerAmmo);
+
+	UFUNCTION(Client, Reliable)
+	void ClientAddAmmo(int32 AmmoToAdd);
+
+
 	void SpendRound();
 	//음수 넣으면 개수 차감도 가능
 	
@@ -106,11 +128,15 @@ public:
 
 	//탄약 잔량 확인
 	bool IsEmpty();
+	bool IsFull();
 
 	//사운드
 	UPROPERTY(EditAnywhere)
 	class USoundCue* EquipSound;
-	
+
+	UPROPERTY(EditAnywhere)
+	//무기의 발사 유형
+	EFireType FireType;
 
 public:	
 
@@ -154,4 +180,11 @@ public:
 	FORCEINLINE int32 GetMagCapacity() const { return MagCapacity; }
 	//탄약 더하기
 	void AddAmmo(int32 AmmoToAdd);
+
+	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
+	bool bUseScatter = false;
+
+	
+
+	
 };

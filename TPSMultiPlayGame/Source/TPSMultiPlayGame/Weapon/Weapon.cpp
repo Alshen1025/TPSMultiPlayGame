@@ -11,6 +11,7 @@
 #include "Animation/AnimationAsset.h"
 #include "Casing.h"
 #include "Engine/SkeletalMeshSocket.h"
+#include "Kismet/KismetMathLibrary.h"
 
 
 // Sets default values
@@ -33,24 +34,24 @@ AWeapon::AWeapon()
 	AreaSphere->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Ignore);
 	AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	
-	if (HasAuthority())
-	{
-		AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-		AreaSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
-		AreaSphere->OnComponentBeginOverlap.AddDynamic(this, &AWeapon::OnSphereOverlap);
-		AreaSphere->OnComponentEndOverlap.AddDynamic(this, &AWeapon::OnSphereEndOverlap);
-	}
-
 	PickupWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("PickupWidget"));
 	PickupWidget->SetupAttachment(RootComponent);
 }
 void AWeapon::BeginPlay()
 {
 	Super::BeginPlay();
+
+	//무기 장착 관련 로직을 서버에서 처리하므로 Pickup Widget의 표시는 로컬에서 진행해도 괜찮음
+	AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	AreaSphere->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Overlap);
+	AreaSphere->OnComponentBeginOverlap.AddDynamic(this, &AWeapon::OnSphereOverlap);
+	AreaSphere->OnComponentEndOverlap.AddDynamic(this, &AWeapon::OnSphereEndOverlap);
+
 	if (PickupWidget)
 	{
 		PickupWidget->SetVisibility(false);
 	}
+	
 }
 void AWeapon::ShowPickupWidget(bool bShowWidget)
 {
@@ -64,7 +65,6 @@ void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AWeapon, WeaponState);
-	DOREPLIFETIME(AWeapon, Ammo);
 }
 void AWeapon::Fire(const FVector& HitTarget)
 {
@@ -90,11 +90,7 @@ void AWeapon::Fire(const FVector& HitTarget)
 			}
 		}
 	}
-	if (HasAuthority())
-	{
-		SpendRound();
-	}
-	
+	SpendRound();
 }
 void AWeapon::OnSphereOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
@@ -163,11 +159,6 @@ void AWeapon::OnRep_WeaponState()
 		break;
 	}
 }
-//총기 탄약 소모
-void AWeapon::OnRep_Ammo()
-{
-	SetHUDAmmo();
-}
 //무기 장착시(Owner가 설정되면) 탄약 관련 처리
 void AWeapon::OnRep_Owner()
 {
@@ -187,10 +178,38 @@ void AWeapon::SpendRound()
 {
 	Ammo = FMath::Clamp(Ammo - 1, 0, MagCapacity);
 	SetHUDAmmo();
+
+	//서버는 ClientUpdateAmmo를 호출하고 클라이언트에서는 Sequence(요청 수 카운트)증가
+	if (HasAuthority())
+	{
+		ClientUpdateAmmo(Ammo);
+	}
+	else
+	{
+		++Sequence;
+	}
 }
 void AWeapon::AddAmmo(int32 AmmoToAdd)
 {
-	Ammo = FMath::Clamp(Ammo - AmmoToAdd, 0, MagCapacity);
+	Ammo = FMath::Clamp(Ammo + AmmoToAdd, 0, MagCapacity);
+	SetHUDAmmo();
+	ClientAddAmmo(AmmoToAdd);
+}
+void AWeapon::ClientUpdateAmmo_Implementation(int32 ServerAmmo)
+{
+	if (HasAuthority()) return;
+	//탄약 수 변경 반영 하고 Sequence감소
+	Ammo = ServerAmmo;
+	--Sequence;
+
+	//탄약 예측 -> 남은 요청 수 만큼 탄약이 감소할 것이라고 예측해서 미리 계산, 서버에서 확인하기 전에 클라이언트에서 예측값 보여주기
+	Ammo -= Sequence;
+	SetHUDAmmo();
+}
+void AWeapon::ClientAddAmmo_Implementation(int32 AmmoToAdd)
+{
+	if (HasAuthority()) return;
+	Ammo = FMath::Clamp(Ammo + AmmoToAdd, 0, MagCapacity);
 	SetHUDAmmo();
 }
 void AWeapon::SetHUDAmmo()
@@ -209,6 +228,10 @@ bool AWeapon::IsEmpty()
 {
 	return Ammo <= 0;
 }
+bool AWeapon::IsFull()
+{
+	return Ammo == MagCapacity;
+}
 void AWeapon::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -225,3 +248,36 @@ void AWeapon::Dropped()
 	TPSOwnerController = nullptr;
 }
 
+FVector AWeapon::TraceEndWithScatter(const FVector& HitTarget)
+{
+	const USkeletalMeshSocket* MuzzleFlashSocket = GetWeaponMesh()->GetSocketByName("MuzzleFlash");
+	if (MuzzleFlashSocket == nullptr) return FVector();
+
+	FTransform SocketTransform = MuzzleFlashSocket->GetSocketTransform(GetWeaponMesh());
+	FVector TraceStart = SocketTransform.GetLocation();
+
+
+	//목표까지의 방향 벡터
+	FVector ToTargetNormalized = (HitTarget - TraceStart).GetSafeNormal();
+	//방향으로 DistanceToSphere만큼 떨어진 거리, 구의 중심점
+	FVector SphereCenter = TraceStart + ToTargetNormalized * DistanceToSphere;
+	//랜덤 벡터(구 내의 한 점)
+	FVector RandVec = UKismetMathLibrary::RandomUnitVector() * FMath::FRandRange(0.f, SphereRadius);
+	//구의 중심점 + 랜덤 벡터(구 내부에 존재하는 랜덤 지점)
+	FVector EndLoc = SphereCenter + RandVec;
+	//시작점에서 랜덤 지점으로 향하는 벡터
+	FVector ToEndLoc = EndLoc - TraceStart;
+
+	//탄착군 디버그 용
+	/*
+	DrawDebugSphere(GetWorld(), SphereCenter, SphereRadius, 12, FColor::Red, true);
+	DrawDebugSphere(GetWorld(), EndLoc, 4.f, 12, FColor::Orange, true);
+	DrawDebugLine(
+		GetWorld(),
+		TraceStart,
+		FVector(TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size() ),
+		FColor::Cyan,
+		true);*/
+
+	return FVector(TraceStart + ToEndLoc * TRACE_LENGTH / ToEndLoc.Size());
+}
