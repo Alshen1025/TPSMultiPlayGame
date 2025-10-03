@@ -163,11 +163,16 @@ private:
 	UPROPERTY(ReplicatedUsing = OnRep_OverlappingWeapon)
 	class AWeapon* OverlappingWeapon;
 
+	//Components
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UCombatComponent* Combat;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UBuffComponent* Buff;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	class ULagCompensationComponent* LagCompensation;
+
 
 	//AimOffset 관련 변수
 	float AO_Yaw;
@@ -277,6 +282,9 @@ public:
 	//BuffComponentGetter
 	FORCEINLINE UBuffComponent* GetBuff() const { return Buff; }
 
+	//LagCompensation
+	FORCEINLINE ULagCompensationComponent* GetLagCompensation() const { return LagCompensation; }
+
 	//플레이어 리스폰 관련
 
 private:
@@ -288,7 +296,7 @@ private:
 
 		void ElimTimerFinishied();
 
- public:
+ private:
 		/*
 		Sever-side rewind를 위한 Hit Boxes
 		*/
@@ -339,4 +347,9 @@ private:
 
 		UPROPERTY(EditAnywhere)
 		UBoxComponent* foot_l;
+
+	public:
+
+		UPROPERTY()
+		TMap<FName, class UBoxComponent*> HitBoxes;
 };
