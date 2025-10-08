@@ -14,13 +14,22 @@
 #include "TPSMultiPlayGame/TPSComponents/CombatComponent.h"
 #include "TPSMultiPlayGame/GameState/TPSGameState.h"
 #include "TPSMultiPlayGame/PlayerState/TPSPlayerState.h"
+#include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
+#include "InputActionValue.h"
 #include "Components/Image.h"
+#include "TPSMultiPlayGame/HUD/ReturnToMainMenu.h"
 
 void ATPSPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 	TPSHUD = Cast<ATPSHUD>(GetHUD());
 	ServerCheckMatchState();
+
+	if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	{
+		Subsystem->AddMappingContext(DefaultMappingContext, 0);
+	}
 }
 void ATPSPlayerController::Tick(float DeltaTime)
 {
@@ -130,6 +139,8 @@ void ATPSPlayerController::SetHUDTime()
 	CountdownInt = SecondsLeft;
 }
 
+
+
 void ATPSPlayerController::HighPingWarning()
 {
 	//HighPing 이미지와 애니메이션 표시
@@ -178,6 +189,42 @@ void ATPSPlayerController::ReceivedPlayer()
 	if (IsLocalController())
 	{
 		ServerRequestServerTime(GetWorld()->GetTimeSeconds());
+	}
+}
+
+void ATPSPlayerController::SetupInputComponent()
+{
+	Super::SetupInputComponent();
+	if (InputComponent == nullptr) return;
+
+	
+	UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(InputComponent);
+	if (EnhancedInputComponent)
+	{
+		if (Quit)
+		{
+			EnhancedInputComponent->BindAction(Quit, ETriggerEvent::Started, this, &ATPSPlayerController::ShowReturnToMainMunu);
+		}
+	}
+}
+void ATPSPlayerController::ShowReturnToMainMunu(const FInputActionValue& Value)
+{
+	if (ReturnToMainMenuWidget == nullptr) return;
+	if (ReturnToMainMenu == nullptr)
+	{
+		ReturnToMainMenu = CreateWidget<UReturnToMainMenu>(this, ReturnToMainMenuWidget);
+	}
+	if (ReturnToMainMenu)
+	{
+		bReturnToMainMenuOpen = !bReturnToMainMenuOpen;
+		if (bReturnToMainMenuOpen)
+		{
+			ReturnToMainMenu->MenuSetup();
+		}
+		else
+		{
+			ReturnToMainMenu->MenuTearDown();
+		}
 	}
 }
 

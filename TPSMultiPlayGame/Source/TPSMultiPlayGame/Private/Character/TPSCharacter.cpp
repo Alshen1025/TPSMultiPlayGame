@@ -23,7 +23,9 @@
 #include "TPSMultiPlayGame/PlayerState/TPSPlayerState.h"
 #include "TPSMultiPlayGame/Weapon/WeaponTypes.h"
 #include "Components/BoxComponent.h"
-
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "TPSMultiPlayGame/GameState/TPSGameState.h"
 
 // Sets default values
 ATPSCharacter::ATPSCharacter()
@@ -176,6 +178,7 @@ void ATPSCharacter::HideCameraIfCharacterClose()
 		}
 	}
 }
+
 
 void ATPSCharacter::PoolInit()
 {
@@ -342,8 +345,6 @@ void ATPSCharacter::PlayHitReactMontage()
 	}
 
 }
-
-
 
 ///
 
@@ -544,8 +545,6 @@ bool ATPSCharacter::IsWeaponEquipped()
 {
 	return (Combat && Combat->EquippedWeapon);
 }
-
-
 //////
 void ATPSCharacter::TurnInPlace(float DeltaTime)
 {
@@ -747,9 +746,49 @@ void ATPSCharacter::UpdateHUDShield()
 	}
 }
 
-//플레이어 제거(사망), 리스폰
-void ATPSCharacter::MulticastEliminated_Implementation()
+void ATPSCharacter::MulticastGainedTheLead_Implementation()
 {
+	if (CrownSystem == nullptr) return;
+	if (CrownComponent == nullptr)
+	{
+		CrownComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
+			CrownSystem,
+			GetCapsuleComponent(),
+			FName(),
+			GetActorLocation() + FVector(0.f, 0.f, 110.f),
+			GetActorRotation(),
+			EAttachLocation::KeepWorldPosition,
+			false
+		);
+	}
+	if (CrownComponent)
+	{
+		CrownComponent->Activate();
+	}
+}
+void ATPSCharacter::MulticastLostTheLead_Implementation()
+{
+	if (CrownComponent)
+	{
+		CrownComponent->DestroyComponent();
+	}
+}
+
+
+void ATPSCharacter::ServerLeaveGame_Implementation()
+{
+	ATPSGameMode* TPSGameMode = GetWorld()->GetAuthGameMode<ATPSGameMode>();
+	TPSPlayerState = TPSPlayerState == nullptr ? GetPlayerState<ATPSPlayerState>() : TPSPlayerState;
+	if (TPSGameMode && TPSPlayerState)
+	{
+		TPSGameMode->PlayerLeftGame(TPSPlayerState);
+	}
+}
+
+//플레이어 제거(사망), 리스폰
+void ATPSCharacter::MulticastEliminated_Implementation(bool bPlayerLeftGame)
+{
+	bLeftGame = bPlayerLeftGame;
 	if (TPSPlayerController)
 	{
 		TPSPlayerController->SetHUDWeaponAmmo(0);
@@ -782,6 +821,17 @@ void ATPSCharacter::MulticastEliminated_Implementation()
 	{
 		ShowSniperScopeWidget(false);
 	}
+	if (CrownComponent)
+	{
+		CrownComponent->DestroyComponent();
+	}
+	GetWorldTimerManager().SetTimer
+	(
+		ElimTimer,
+		this,
+		&ATPSCharacter::ElimTimerFinishied,
+		ElimDelay
+	);
 }
 
 void ATPSCharacter::PlayDeathMontage()
@@ -792,28 +842,26 @@ void ATPSCharacter::PlayDeathMontage()
 		AnimInstace->Montage_Play(DeathMontage);
 	}
 }
-void ATPSCharacter::Eliminated()
+void ATPSCharacter::Eliminated(bool bPlayerLeftGame)
 {
 	if (Combat && Combat->EquippedWeapon)
 	{
 		Combat->EquippedWeapon->Dropped();
 	}
-	MulticastEliminated();
-	GetWorldTimerManager().SetTimer
-	(
-		ElimTimer,
-		this,
-		&ATPSCharacter::ElimTimerFinishied,
-		ElimDelay
-	);
+	MulticastEliminated(bPlayerLeftGame);
 }
 
 void ATPSCharacter::ElimTimerFinishied()
 {
 	ATPSGameMode* TPSGameMode = GetWorld()->GetAuthGameMode<ATPSGameMode>();
-	if (TPSGameMode)
+	if (TPSGameMode && !bLeftGame) //게임이 종료되지 않았다면
 	{
 		TPSGameMode->RequestRespawn(this, Controller);
+	}
+	//사망이 아니라 게임을 떠날 때
+	if (bLeftGame && IsLocallyControlled())
+	{
+		OnLeftGame.Broadcast();
 	}
 }
 

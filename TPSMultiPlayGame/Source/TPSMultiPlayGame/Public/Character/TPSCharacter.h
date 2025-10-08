@@ -12,6 +12,9 @@
 
 class UInputMappingContext;
 class UInputAction;
+class ATPSPlayerState;
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLeftGame);
 
 UCLASS()
 class TPSMULTIPLAYGAME_API ATPSCharacter : public ACharacter, public IInteractWithCrosshairsInterface
@@ -49,7 +52,15 @@ public:
 
 	void UpdateHUDHealth();
 	void UpdateHUDShield();
+
+	UFUNCTION(Server, Reliable)
+	void ServerLeaveGame();
 	
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastGainedTheLead();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastLostTheLead();
 
 protected:
 	//관련 클래스 확인 후 HUD 초기화
@@ -202,10 +213,6 @@ private:
 	UAnimMontage* ReloadMontage;
 
 public:
-
-//
-
-public:
 	//Getter, Setter
 	FORCEINLINE float GetAO_Yaw() const { return AO_Yaw;  }
 	FORCEINLINE float GetAO_Pitch() const { return AO_Pitch; }
@@ -247,13 +254,13 @@ public:
 
 	//플레이어 제거(사망)
 	UFUNCTION(NetMulticast, Reliable)
-	void MulticastEliminated();
+	void MulticastEliminated(bool bPlayerLeftGame);
 
-	void Eliminated();
+	void Eliminated(bool bPlayerLeftGame);
 
 public:
 	UPROPERTY()
-	class ATPSPlayerState* TPSPlayerState;
+	ATPSPlayerState* TPSPlayerState;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAceess = "true"))
 	class UWidgetComponent* OverheadWidget;
@@ -285,9 +292,9 @@ public:
 	//LagCompensation
 	FORCEINLINE ULagCompensationComponent* GetLagCompensation() const { return LagCompensation; }
 
+	FOnLeftGame OnLeftGame;
 
 	//플레이어 리스폰 관련
-
 private:
 
 		FTimerHandle ElimTimer;
@@ -296,6 +303,17 @@ private:
 		float ElimDelay = 3.f;
 
 		void ElimTimerFinishied();
+
+		//
+		bool bLeftGame = false;
+
+		//이펙트
+		UPROPERTY(EditAnywhere)
+		class UNiagaraSystem* CrownSystem;
+
+		UPROPERTY()
+		class UNiagaraComponent* CrownComponent;
+		
 
  private:
 		/*

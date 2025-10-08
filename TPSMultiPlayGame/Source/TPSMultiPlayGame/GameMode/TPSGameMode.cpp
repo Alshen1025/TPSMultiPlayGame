@@ -51,6 +51,7 @@ void ATPSGameMode::Tick(float DeltaTime)
 	}
 }
 
+
 void ATPSGameMode::BeginPlay()
 {
 	Super::BeginPlay();
@@ -84,8 +85,34 @@ void ATPSGameMode::EliminatePlayer(class ATPSCharacter* EliminatedCharacter, cla
 	ATPSGameState* TPSGameState = GetGameState<ATPSGameState>();
 	if (AttackerPlayerState && AttackerPlayerState != VictimPlayerState && TPSGameState)
 	{
+		//리드 중
+		TArray<ATPSPlayerState*> PlayersCurrentlyInTheLead;
+		for (auto LeadPlayer : TPSGameState->TopScoringPlayers)
+		{
+			PlayersCurrentlyInTheLead.Add(LeadPlayer);
+		}
 		AttackerPlayerState->AddToScore(1.f);
 		TPSGameState->UpdateTopScore(AttackerPlayerState);
+		if (TPSGameState->TopScoringPlayers.Contains(AttackerPlayerState))
+		{
+			ATPSCharacter* Leader = Cast<ATPSCharacter>(AttackerPlayerState->GetPawn());
+			if (Leader)
+			{
+				Leader->MulticastGainedTheLead();
+			}
+		}
+
+		for (int32 i = 0; i < PlayersCurrentlyInTheLead.Num(); i++)
+		{
+			if (!TPSGameState->TopScoringPlayers.Contains(PlayersCurrentlyInTheLead[i]))
+			{
+				ATPSCharacter* Loser = Cast<ATPSCharacter>(PlayersCurrentlyInTheLead[i]->GetPawn());
+				if (Loser)
+				{
+					Loser->MulticastLostTheLead();
+				}
+			}
+		}
 	}
 	if (VictimPlayerState)
 	{
@@ -94,7 +121,7 @@ void ATPSGameMode::EliminatePlayer(class ATPSCharacter* EliminatedCharacter, cla
 
 	if (EliminatedCharacter)
 	{
-		EliminatedCharacter->Eliminated();
+		EliminatedCharacter->Eliminated(false);
 	}
 }
 
@@ -113,4 +140,22 @@ void ATPSGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController* Eli
 		RestartPlayerAtPlayerStart(ElimmedController, PlayerStarts[Selection]);
 	}
 }
+
+void ATPSGameMode::PlayerLeftGame(ATPSPlayerState* PlayerLeaving)
+{
+	if (PlayerLeaving == nullptr) return;
+	ATPSGameState* TPSGameState = GetGameState<ATPSGameState>();
+	//게임을 떠난 Player가 TopScoringPlayers에 포함되어있는지
+	if (TPSGameState && TPSGameState->TopScoringPlayers.Contains(PlayerLeaving))
+	{
+		//포함되어 있으면 제거
+		TPSGameState->TopScoringPlayers.Remove(PlayerLeaving);
+	}
+	ATPSCharacter* CharacterLeaving = Cast<ATPSCharacter>(PlayerLeaving->GetPawn());
+	if (CharacterLeaving)
+	{
+		CharacterLeaving->Eliminated(true);
+	}
+}
+
 

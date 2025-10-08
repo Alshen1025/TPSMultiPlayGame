@@ -41,6 +41,8 @@ public:
 	float CooldownTime = 10.0f;
 	FORCEINLINE float GetCountdownTime() const {return CountdownTime;}
 
+	void PlayerLeftGame(class ATPSPlayerState* PlayerLeaving);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void OnMatchStateSet() override;

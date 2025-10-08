@@ -4,10 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "InputActionValue.h"
 #include "TPSPlayerController.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FHighPingDelegate, bool, bPingTooHigh);
 
+class UInputAction;
+class UInputMappingContext;
 /**
  * 
  */
@@ -17,6 +20,7 @@ class TPSMULTIPLAYGAME_API ATPSPlayerController : public APlayerController
 	GENERATED_BODY()
 	
 public:
+
 	void SetHUDHealth(float Health, float MaxHealth);
 	void SetHUDShield(float Shield, float MaxShield);
 	void SetHUDScore(float Score);
@@ -38,6 +42,24 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	void SetHUDTime();
+
+	//Return to Main Menu
+	virtual void SetupInputComponent() override;
+
+	void ShowReturnToMainMunu(const FInputActionValue& Value);
+	UPROPERTY(EditAnywhere, Category = HUD)
+	TSubclassOf <class UUserWidget> ReturnToMainMenuWidget;
+
+	UPROPERTY()
+	class UReturnToMainMenu* ReturnToMainMenu;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* Quit;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputMappingContext* DefaultMappingContext;
+
+	bool bReturnToMainMenuOpen = false;
 
 /// <summary>
 /// 클라이언트와 서버간의 시간 동기화
