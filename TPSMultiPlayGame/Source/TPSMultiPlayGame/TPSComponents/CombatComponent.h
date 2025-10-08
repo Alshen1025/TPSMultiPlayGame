@@ -57,10 +57,10 @@ protected:
 	void FireProjectileWeapon();
 	void FireHitScan();
 	void FireShotgun();
-	UFUNCTION(Server, Reliable)
-	void ServerFire(const FVector_NetQuantize& TraceHitTarget);
-	UFUNCTION(Server, Reliable)
-	void ServerShotgunFire(const TArray<FVector_NetQuantize>& TraceHitTargets);
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerFire(const FVector_NetQuantize& TraceHitTarget, float FireDelay);
+	UFUNCTION(Server, Reliable, WithValidation)
+	void ServerShotgunFire(const TArray<FVector_NetQuantize>& TraceHitTargets, float FireDelay);
 	UFUNCTION(NetMulticast, Reliable)
 	void MultiCasatShotgunFire(const TArray<FVector_NetQuantize>& TraceHitTargets);
 	UFUNCTION(NetMulticast, Reliable)

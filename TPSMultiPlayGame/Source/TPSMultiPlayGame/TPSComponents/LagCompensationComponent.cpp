@@ -65,7 +65,11 @@ void ULagCompensationComponent::SaveFramePackage(FFramePackage& Package)
 			FBoxInformation BoxInformation;
 			BoxInformation.Location = BoxPair.Value->GetComponentLocation();
 			BoxInformation.Rotation = BoxPair.Value->GetComponentRotation();
-			BoxInformation.BoxExtent = BoxPair.Value->GetScaledBoxExtent();
+			BoxInformation.BoxExtent = BoxPair.Value->GetUnscaledBoxExtent();
+			if (BoxPair.Key == FName("head"))
+			{
+				UE_LOG(LogTemp, Warning, TEXT("SaveFramePackage: Character %s, Head Extent = %s"), *Character->GetName(), *BoxInformation.BoxExtent.ToString());
+			}
 			Package.HitBoxInfo.Add(BoxPair.Key, BoxInformation);
 		}
 	}
@@ -90,21 +94,23 @@ FFramePackage ULagCompensationComponent::InterpBetweenFrams(const FFramePackage&
 	{
 		//현재 처리중인 HitBox의 이름
 		const FName& BoxInfoName = YoungerPair.Key;
+		const FBoxInformation& YoungerBox = YoungerPair.Value;
 
 		//같은 이름을 가진 히트 박스 정보를 Older와 Younger에서 가져오기
-		const FBoxInformation& OlderBox = OlderFrame.HitBoxInfo[BoxInfoName];
-		const FBoxInformation& YoungerBox = YoungerFrame.HitBoxInfo[BoxInfoName];
-
-		//보간된 데이터 저장
-		FBoxInformation InterpBoxInfo;
-
-		//InterpFraction 시점의 위치와 회전 계산, Extent는 항상 고정되어 있으므로 보간될 필요가 없음
-		InterpBoxInfo.Location = FMath::VInterpTo(OlderBox.Location, YoungerBox.Location, 1.f, InterpFraction);
-		InterpBoxInfo.Rotation = FMath::RInterpTo(OlderBox.Rotation, YoungerBox.Rotation, 1.f, InterpFraction);
-		InterpBoxInfo.BoxExtent = YoungerBox.BoxExtent;
-
-		//해당 부위 HitBox의 보간 정보를 InterpFramePackage의 HitBoxInfo(HitBox저장된 Map)에 추가
-		InterpFramePackage.HitBoxInfo.Add(BoxInfoName, InterpBoxInfo);
+		const FBoxInformation* OlderBoxPtr = OlderFrame.HitBoxInfo.Find(BoxInfoName);
+		
+		if (OlderBoxPtr)
+		{
+			const FBoxInformation& OlderBox = *OlderBoxPtr;
+			//보간된 데이터 저장
+			FBoxInformation InterpBoxInfo;
+			//InterpFraction 시점의 위치와 회전 계산, Extent는 항상 고정되어 있으므로 보간될 필요가 없음
+			InterpBoxInfo.Location = FMath::VInterpTo(OlderBox.Location, YoungerBox.Location, 1.f, InterpFraction);
+			InterpBoxInfo.Rotation = FMath::RInterpTo(OlderBox.Rotation, YoungerBox.Rotation, 1.f, InterpFraction);
+			InterpBoxInfo.BoxExtent = YoungerBox.BoxExtent;
+			//해당 부위 HitBox의 보간 정보를 InterpFramePackage의 HitBoxInfo(HitBox저장된 Map)에 추가
+			InterpFramePackage.HitBoxInfo.Add(BoxInfoName, InterpBoxInfo);
+		}
 	}
 
 	return InterpFramePackage;
@@ -138,6 +144,14 @@ FServerSideRewindResult ULagCompensationComponent::ConfirmHit(const FFramePackag
 		);
 		if (ConfirmHitResult.bBlockingHit) //머리를 맞았을 경우를 가장 먼저 판정
 		{
+			if (ConfirmHitResult.Component.IsValid())
+			{
+				UBoxComponent* Box = Cast<UBoxComponent>(ConfirmHitResult.Component);
+				if (Box)
+				{
+					DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Red, false, 8.f);
+				}
+			}
 			//HitBox들 제자리로
 			ResetHitBoxes(HitCharacter, CurrentFrame);
 			EnableCharacterMeshCollision(HitCharacter, ECollisionEnabled::QueryAndPhysics);
@@ -218,6 +232,14 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 			ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(ConfirmHitResult.GetActor());
 			if (TPSCharacter)
 			{
+				if (ConfirmHitResult.Component.IsValid())
+				{
+					UBoxComponent* Box = Cast<UBoxComponent>(ConfirmHitResult.Component);
+					if (Box)
+					{
+						DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Red, false, 8.f);
+					}
+				}
 				if (ShotgunResult.HeadShots.Contains(TPSCharacter))
 				{
 					ShotgunResult.HeadShots[TPSCharacter]++;
@@ -263,6 +285,14 @@ FShotgunServerSideRewindResult ULagCompensationComponent::ShotgunConfirmHit(cons
 			ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(ConfirmHitResult.GetActor());
 			if (TPSCharacter)
 			{
+				if (ConfirmHitResult.Component.IsValid())
+				{
+					UBoxComponent* Box = Cast<UBoxComponent>(ConfirmHitResult.Component);
+					if (Box)
+					{
+						DrawDebugBox(GetWorld(), Box->GetComponentLocation(), Box->GetScaledBoxExtent(), FQuat(Box->GetComponentRotation()), FColor::Red, false, 8.f);
+					}
+				}
 				if (ShotgunResult.BodyShots.Contains(TPSCharacter))
 				{
 					ShotgunResult.BodyShots[TPSCharacter]++;
@@ -294,7 +324,7 @@ void ULagCompensationComponent::CacheBoxPositions(ATPSCharacter* HitCharacter, F
 			FBoxInformation BoxInfo;
 			BoxInfo.Location = HitBoxPair.Value->GetComponentLocation();
 			BoxInfo.Rotation = HitBoxPair.Value->GetComponentRotation();
-			BoxInfo.BoxExtent = HitBoxPair.Value->GetScaledBoxExtent();
+			BoxInfo.BoxExtent = HitBoxPair.Value->GetUnscaledBoxExtent();
 			OutFramePackage.HitBoxInfo.Add(HitBoxPair.Key, BoxInfo);
 		}
 	}
@@ -304,12 +334,17 @@ void ULagCompensationComponent::MoveBoxes(ATPSCharacter* HitCharacter, const FFr
 	if (HitCharacter == nullptr) return;
 	for (auto& HitBoxPair : HitCharacter->HitBoxes)
 	{
-		//Package의 값으로 현재 캐릭터의 HitBox들 이동
 		if (HitBoxPair.Value != nullptr)
 		{
-			HitBoxPair.Value->SetWorldLocation(Package.HitBoxInfo[HitBoxPair.Key].Location);
-			HitBoxPair.Value->SetWorldRotation(Package.HitBoxInfo[HitBoxPair.Key].Rotation);
-			HitBoxPair.Value->SetBoxExtent(Package.HitBoxInfo[HitBoxPair.Key].BoxExtent);
+			// Find()를 사용해 안전하게 데이터 가져오기
+			//Package의 값으로 현재 캐릭터의 HitBox들 이동
+			const FBoxInformation* BoxInfo = Package.HitBoxInfo.Find(HitBoxPair.Key);
+			if (BoxInfo)
+			{
+				HitBoxPair.Value->SetWorldLocation(BoxInfo->Location);
+				HitBoxPair.Value->SetWorldRotation(BoxInfo->Rotation);
+				HitBoxPair.Value->SetBoxExtent(BoxInfo->BoxExtent);
+			}
 		}
 	}
 }
@@ -318,12 +353,16 @@ void ULagCompensationComponent::ResetHitBoxes(ATPSCharacter* HitCharacter, const
 	if (HitCharacter == nullptr) return;
 	for (auto& HitBoxPair : HitCharacter->HitBoxes)
 	{
-		//Package의 값으로 현재 캐릭터의 HitBox들 이동
 		if (HitBoxPair.Value != nullptr)
 		{
-			HitBoxPair.Value->SetWorldLocation(Package.HitBoxInfo[HitBoxPair.Key].Location);
-			HitBoxPair.Value->SetWorldRotation(Package.HitBoxInfo[HitBoxPair.Key].Rotation);
-			HitBoxPair.Value->SetBoxExtent(Package.HitBoxInfo[HitBoxPair.Key].BoxExtent);
+			const FBoxInformation* BoxInfo = Package.HitBoxInfo.Find(HitBoxPair.Key);
+			if (BoxInfo)
+			{
+				
+				HitBoxPair.Value->SetWorldLocation(BoxInfo->Location);
+				HitBoxPair.Value->SetWorldRotation(BoxInfo->Rotation);
+				HitBoxPair.Value->SetBoxExtent(BoxInfo->BoxExtent);
+			}
 			HitBoxPair.Value->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		}
 	}

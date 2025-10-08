@@ -56,6 +56,23 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
 	float SphereRadius = 75.f;
 
+
+	//데미지
+	UPROPERTY(EditAnywhere)
+	float Damage = 20.f;
+
+	UPROPERTY(Replicated, EditAnywhere)
+	bool bUseServerSideRewind = true;
+
+	UPROPERTY()
+	class ATPSCharacter* TPSOwnerCharacter;
+
+	UPROPERTY()
+	class ATPSPlayerController* TPSOwnerController;
+
+	UFUNCTION()
+	void OnPingTooHigh(bool bPingToHigh);
+
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Weapon Properties")
 	USkeletalMeshComponent* WeaponMesh;
@@ -65,6 +82,11 @@ private:
 
 	UPROPERTY(ReplicatedUsing = OnRep_WeaponState, VisibleAnywhere, Category = "Weapon Properties")
 	EWeaponState WeaponState;
+
+	//무기 장착, 해제
+	void OnEquipped();
+
+	void OnDropped();
 
 	UFUNCTION()
 	void OnRep_WeaponState();
@@ -111,11 +133,7 @@ private:
 	UPROPERTY(EditAnywhere)
 	int32 MagCapacity;
 
-	UPROPERTY()
-	class ATPSCharacter* TPSOwnerCharacter;
-
-	UPROPERTY()
-	class ATPSPlayerController* TPSOwnerController;
+	
 
 	//무기 타입
 	UPROPERTY(EditAnywhere)
@@ -162,8 +180,9 @@ public:
 	FORCEINLINE USkeletalMeshComponent* GetWeaponMesh() const { return WeaponMesh; }
 
 	FORCEINLINE float GetZoomInterpSpeed() const { return ZoominterpSpeed; }
-
 	FORCEINLINE float GetZoomedFOV() const { return ZoomFOV; }
+
+	FORCEINLINE float GetDamage() const { return Damage; }
 
 	//연사 기능
 	UPROPERTY(EditAnywhere, Category = Combat)

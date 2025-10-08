@@ -75,7 +75,7 @@ void AProjectile::OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimi
 
 void AProjectile::Tick(float DeltaTime)
 {
-
+	Super::Tick(DeltaTime);
 }
 
 void AProjectile::StartDestroyTimer()

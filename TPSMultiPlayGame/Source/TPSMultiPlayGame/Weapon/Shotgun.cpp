@@ -8,7 +8,8 @@
 #include "TPSMultiPlayGame/Public/Character/TPSCharacter.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "Kismet/KismetMathLibrary.h"
-
+#include "TPSMultiPlayGame/PlayerController/TPSPlayerController.h"
+#include "TPSMultiPlayGame/TPSComponents/LagCompensationComponent.h"
 
 void AShotgun::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
 {
@@ -64,19 +65,73 @@ void AShotgun::FireShotgun(const TArray<FVector_NetQuantize>& HitTargets)
 			}
 		}
 		//각 플레이어가 맞은 탄환의 수 만큼 데미지 계산
+		TArray<ATPSCharacter*> HitCharacters;
 		for (auto HitCharacter : HitMap)
 		{
-			if (HitCharacter.Key && HasAuthority() && InstigatorController)
+			if (HitCharacter.Key && InstigatorController)
 			{
-				//데미지 처리는 서버에서만
-				UGameplayStatics::ApplyDamage(
-					HitCharacter.Key,
-					Damage * HitCharacter.Value,
-					InstigatorController,
-					this,
-					UDamageType::StaticClass()
+				bool bCauseAuthDamage = !bUseServerSideRewind || OwnerPawn->IsLocallyControlled();
+				if (HasAuthority() && bCauseAuthDamage)
+				{
+					//서버는 Rewind가 필요없음
+					UGameplayStatics::ApplyDamage(
+						HitCharacter.Key,
+						Damage * HitCharacter.Value,
+						InstigatorController,
+						this,
+						UDamageType::StaticClass()
+					);
+				}
+			}
+			HitCharacters.Add(HitCharacter.Key);
+		}
+		if (!HasAuthority() && bUseServerSideRewind)
+		{
+			// 로그를 식별하기 쉽도록 LogTemp 카테고리에 Warning 레벨로 출력합니다.
+			UE_LOG(LogTemp, Warning, TEXT("--- [C++ DEBUG] Client Fire Logic Triggered ---"));
+
+			if (OwnerPawn)
+			{
+				// UObject의 이름을 얻기 위해 GetName()을 사용합니다.
+				UE_LOG(LogTemp, Warning, TEXT("[C++ DEBUG] OwnerPawn: %s (Valid)"), *OwnerPawn->GetName());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[C++ DEBUG] OwnerPawn: nullptr (INVALID!)"));
+			}
+
+			if (InstigatorController)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[C++ DEBUG] InstigatorController: %s (Valid)"), *InstigatorController->GetName());
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[C++ DEBUG] InstigatorController: nullptr (INVALID!)"));
+			}
+
+			ATPSCharacter* LocalOwnerCharacter = Cast<ATPSCharacter>(OwnerPawn);
+			ATPSPlayerController* LocalOwnerController = Cast<ATPSPlayerController>(InstigatorController);
+			if (LocalOwnerCharacter && LocalOwnerController && LocalOwnerCharacter->GetLagCompensation() && LocalOwnerCharacter->IsLocallyControlled())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[C++ DEBUG] All conditions met. Sending ServerScoreRequest RPC..."));
+				LocalOwnerCharacter->GetLagCompensation()->ShotgunServerScoreRequest
+				(
+					HitCharacters,
+					Start,
+					HitTargets,
+					LocalOwnerController->GetServerTime() - LocalOwnerController->SingleTripTime
 				);
 			}
+			else
+			{
+				// RPC 전송 실패 시 어떤 조건이 실패했는지 상세히 출력합니다.
+				UE_LOG(LogTemp, Error, TEXT("[C++ DEBUG] ServerScoreRequest RPC NOT SENT due to failed conditions:"));
+				if (!LocalOwnerCharacter) UE_LOG(LogTemp, Error, TEXT(" -> LocalOwnerCharacter is nullptr"));
+				if (!LocalOwnerController) UE_LOG(LogTemp, Error, TEXT(" -> LocalOwnerController is nullptr"));
+				if (LocalOwnerCharacter && !LocalOwnerCharacter->GetLagCompensation()) UE_LOG(LogTemp, Error, TEXT(" -> LagCompensationComponent is nullptr"));
+				if (LocalOwnerCharacter && !LocalOwnerCharacter->IsLocallyControlled()) UE_LOG(LogTemp, Error, TEXT(" -> Character is not locally controlled"));
+			}
+			UE_LOG(LogTemp, Warning, TEXT("--- [C++ DEBUG] Client Fire Logic Finished ---\n")); // 로그 구분을 위해 한 줄 띄움
 		}
 	}
 }

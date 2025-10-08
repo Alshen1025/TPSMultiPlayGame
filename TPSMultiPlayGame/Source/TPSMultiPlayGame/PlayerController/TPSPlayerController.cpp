@@ -47,6 +47,11 @@ void ATPSPlayerController::CheckPing(float DeltaTime)
 			{
 				HighPingWarning();
 				PingAnimationRunningTime = 0.f;
+				ServerReportPingStatus(true);
+			}
+			else
+			{
+				ServerReportPingStatus(false);
 			}
 		}
 	}
@@ -62,6 +67,11 @@ void ATPSPlayerController::CheckPing(float DeltaTime)
 			StopHighPingWarning();
 		}
 	}
+}
+//핑이 너무 높으면
+void ATPSPlayerController::ServerReportPingStatus_Implementation(bool bHighPing)
+{
+	HighPingDelegate.Broadcast(bHighPing);
 }
 void ATPSPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
@@ -176,7 +186,7 @@ void ATPSPlayerController::ClientReportServerTime_Implementation(float TimeOfCli
 	//요청을 보내고 답을 받을 때 까지 걸린 시간(서버 - 클라이언트 왕복시간)
 	//클라이언트가 서버에 요청을 보내고 얼마나 많은 시간이 흘렀는가
 	float RoundTripTime = GetWorld()->GetTimeSeconds() - TimeOfClientRequest;
-
+	SingleTripTime = 0.5 * RoundTripTime;
 	//서버의 현재 시간을 계산
 	//서버가 클라이언트의 요청을 받은시간에 왕복 시간의 절반을 더하기
 	float  CurrentSeverTime = TimeServerReceiced + (0.5 * RoundTripTime);
@@ -297,6 +307,7 @@ void ATPSPlayerController::OnRep_MatchState()
 	
 	
 }
+
 void ATPSPlayerController::ServerCheckMatchState_Implementation()
 {
 	ATPSGameMode* Gamemode = Cast<ATPSGameMode>(UGameplayStatics::GetGameMode(this));

@@ -15,6 +15,21 @@ public:
 	AProjectile();
 	virtual void Destroyed() override;
 
+	UPROPERTY(EditAnywhere)
+	float Damage = 10.f;
+
+/// <summary>
+/// 발사체 Server-Side Rewind에서 사용
+/// </summary>
+
+	bool bUseServerSideRewind = false;
+	FVector_NetQuantize TraceStart;
+	//소수점 2자리 이하
+	FVector_NetQuantize100 InitialVelocity;
+
+	UPROPERTY(EditAnywhere)
+	float InitialSpeed = 15000;
+
 protected:
 	virtual void BeginPlay() override;
 	
@@ -29,8 +44,7 @@ protected:
 	UFUNCTION()//                                                                                                              <표면으로 향하는 벡터 방향(3D에서 수직을 의미)>
 	virtual void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector  NormalImpulse, const FHitResult& Hit);
 
-	UPROPERTY(EditAnywhere)
-	float Damage = 10.f;
+	
 
 	UPROPERTY(EditAnywhere)
 	UParticleSystem* ImpactParticles;

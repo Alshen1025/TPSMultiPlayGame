@@ -4,12 +4,15 @@
 #include "HitScanWeapon.h"
 #include "Engine/SkeletalMeshSocket.h"
 #include "TPSMultiPlayGame/Public/Character/TPSCharacter.h"
+#include "TPSMultiPlayGame/PlayerController/TPSPlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystemComponent.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "WeaponTypes.h"
 #include "DrawDebugHelpers.h"
 #include "Sound/SoundCue.h"
+#include "TPSMultiPlayGame/TPSComponents/LagCompensationComponent.h"
+#include "TPSMultiPlayGame/TPSMultiPlayGame.h"
 
 void AHitScanWeapon::Fire(const FVector& HitTarget)
 {
@@ -31,20 +34,40 @@ void AHitScanWeapon::Fire(const FVector& HitTarget)
 		FHitResult FireHit;
 		//라인 트레이스로 피격 판정
 		WeaponTraceHit(Start, HitTarget, FireHit);
+
 		//Damage주기
 		//발사체가 없으므로 라인트레이스 발생 시 데미지를 가함.
 		//TPSCharacter->피해를 입을 대상
 		ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(FireHit.GetActor());
-		if (TPSCharacter && HasAuthority() && InstigatorController)
+		if (TPSCharacter  && InstigatorController)
 		{
-			//데미지 처리는 서버에서만
-			UGameplayStatics::ApplyDamage(
-				TPSCharacter,
-				Damage,
-				InstigatorController,
-				this,
-				UDamageType::StaticClass()
-			);
+			//서버는 가장 앞서나가 있으므로 Server-side Rewind를 적용 할 필요없이 데미지 처리 시행
+			bool bCauseAuthDamage = !bUseServerSideRewind || OwnerPawn->IsLocallyControlled();
+			if (HasAuthority() && bCauseAuthDamage)
+			{
+				//데미지 처리는 서버에서만
+				UGameplayStatics::ApplyDamage(
+					TPSCharacter,
+					Damage,
+					InstigatorController,
+					this,
+					UDamageType::StaticClass()
+				);
+			}
+			//클라이언트의 경우에는 ServerSideRewind를 통해 보정한 후에 데미지 호출
+			if(!HasAuthority() && bUseServerSideRewind)
+			{
+				ATPSCharacter* LocalOwnerCharacter = Cast<ATPSCharacter>(OwnerPawn);
+				ATPSPlayerController* LocalOwnerController = Cast<ATPSPlayerController>(InstigatorController);
+				if (LocalOwnerCharacter && LocalOwnerController && LocalOwnerCharacter->GetLagCompensation() && LocalOwnerCharacter->IsLocallyControlled())
+				{
+					LocalOwnerCharacter->GetLagCompensation()->ServerScoreRequst
+					(TPSCharacter, Start, HitTarget, 
+						LocalOwnerController->GetServerTime() - LocalOwnerController->SingleTripTime
+					);
+				}
+			}
+			
 		}
 		if (ImpactParticles)
 		{

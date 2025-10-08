@@ -65,6 +65,7 @@ void AWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeP
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(AWeapon, WeaponState);
+	DOREPLIFETIME_CONDITION(AWeapon, bUseServerSideRewind, COND_OwnerOnly);
 }
 void AWeapon::Fire(const FVector& HitTarget)
 {
@@ -134,6 +135,13 @@ void AWeapon::SetWeaponState(EWeaponState State)
 	}
 
 }
+//핑에따라 SSW 활성, 비활성화
+void AWeapon::OnPingTooHigh(bool bPingToHigh)
+{
+	bUseServerSideRewind = !bPingToHigh;
+}
+
+
 
 void AWeapon::OnRep_WeaponState()
 {
@@ -142,21 +150,59 @@ void AWeapon::OnRep_WeaponState()
 	case EWeaponState::EWS_Initial:
 		break;
 	case EWeaponState::EWS_Equipped:
-		ShowPickupWidget(false);
-		AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		WeaponMesh->SetSimulatePhysics(false);
-		WeaponMesh->SetEnableGravity(false);
-		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		OnEquipped();
 		break;
 	case EWeaponState::EWS_Dropped:
-		WeaponMesh->SetSimulatePhysics(true);
-		WeaponMesh->SetEnableGravity(true);
-		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		OnDropped();
+		
 		break;
 	case EWeaponState::EWS_MAX:
 		break;
 	default:
 		break;
+	}
+}
+
+void AWeapon::OnEquipped()
+{
+	ShowPickupWidget(false);
+	AreaSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WeaponMesh->SetSimulatePhysics(false);
+	WeaponMesh->SetEnableGravity(false);
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	TPSOwnerCharacter = TPSOwnerCharacter == nullptr ? Cast<ATPSCharacter>(GetOwner()) : TPSOwnerCharacter;
+	if (TPSOwnerCharacter)
+	{
+		TPSOwnerController = TPSOwnerController == nullptr ? Cast<ATPSPlayerController>(TPSOwnerCharacter->GetController()) : TPSOwnerController;
+		if (TPSOwnerController && HasAuthority() && !TPSOwnerController->HighPingDelegate.IsBound())
+		{
+			TPSOwnerController->HighPingDelegate.AddDynamic(this, &AWeapon::OnPingTooHigh);
+		}
+	}
+}
+
+void AWeapon::OnDropped()
+{
+	if (HasAuthority())
+	{
+		AreaSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	}
+	WeaponMesh->SetSimulatePhysics(true);
+	WeaponMesh->SetEnableGravity(true);
+	WeaponMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	WeaponMesh->SetCollisionResponseToAllChannels(ECollisionResponse::ECR_Block);
+	WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Pawn, ECollisionResponse::ECR_Ignore);
+	WeaponMesh->SetCollisionResponseToChannel(ECollisionChannel::ECC_Camera, ECollisionResponse::ECR_Ignore);
+
+	TPSOwnerCharacter = TPSOwnerCharacter == nullptr ? Cast<ATPSCharacter>(GetOwner()) : TPSOwnerCharacter;
+	if (TPSOwnerCharacter)
+	{
+		TPSOwnerController = TPSOwnerController == nullptr ? Cast<ATPSPlayerController>(TPSOwnerCharacter->GetController()) : TPSOwnerController;
+		if (TPSOwnerController && HasAuthority() && TPSOwnerController->HighPingDelegate.IsBound())
+		{
+			TPSOwnerController->HighPingDelegate.RemoveDynamic(this, &AWeapon::OnPingTooHigh);
+		}
 	}
 }
 //무기 장착시(Owner가 설정되면) 탄약 관련 처리
