@@ -61,6 +61,9 @@ protected:
 	UPROPERTY(EditAnywhere)
 	float Damage = 20.f;
 
+	UPROPERTY(EditAnywhere)
+	float HeadShotDamage = 40.f;
+
 	UPROPERTY(Replicated, EditAnywhere)
 	bool bUseServerSideRewind = true;
 
@@ -183,6 +186,7 @@ public:
 	FORCEINLINE float GetZoomedFOV() const { return ZoomFOV; }
 
 	FORCEINLINE float GetDamage() const { return Damage; }
+	FORCEINLINE float GetHeadShotDamage() const { return HeadShotDamage; }
 
 	//연사 기능
 	UPROPERTY(EditAnywhere, Category = Combat)
@@ -202,8 +206,5 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = "Weapon Scatter")
 	bool bUseScatter = false;
-
-	
-
 	
 };

@@ -8,6 +8,8 @@
 #include "TPSMultiPlayGame/Weapon/Weapon.h"
 #include "TPSMultiPlayGame/TPSTypes/Combatstate.h"
 
+
+
 void UTPSAnimInstance::NativeInitializeAnimation()
 {
 	Super::NativeInitializeAnimation();
@@ -18,6 +20,7 @@ void UTPSAnimInstance::NativeInitializeAnimation()
 void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 {
 	Super::NativeUpdateAnimation(DeltaTime);
+	/**/
 
 	if (TPSCharacter == nullptr)
 	{
@@ -30,7 +33,7 @@ void UTPSAnimInstance::NativeUpdateAnimation(float DeltaTime)
 	Speed = Velocity.Size();
 
 	bIsInAir = TPSCharacter->GetCharacterMovement()->IsFalling();
-	bIsAccelerating = TPSCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() > 0.f ? true : false;
+	bIsAccelerating = TPSCharacter->GetCharacterMovement()->GetCurrentAcceleration().Size() >= 0.f ? true : false;
 	bWeaponEquiped = TPSCharacter->IsWeaponEquipped();
 	EquippedWeapon = TPSCharacter->GetEquippedWeapon();
 	bIsCrouched = TPSCharacter->bIsCrouched;

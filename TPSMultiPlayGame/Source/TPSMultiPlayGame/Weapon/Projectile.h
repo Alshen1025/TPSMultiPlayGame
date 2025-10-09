@@ -18,6 +18,9 @@ public:
 	UPROPERTY(EditAnywhere)
 	float Damage = 10.f;
 
+	UPROPERTY(EditAnywhere)
+	float HeadShotDamage = 40.f;
+
 /// <summary>
 /// 발사체 Server-Side Rewind에서 사용
 /// </summary>

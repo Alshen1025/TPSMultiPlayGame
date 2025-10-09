@@ -482,11 +482,13 @@ void ULagCompensationComponent::ServerScoreRequst_Implementation(ATPSCharacter* 
 	//ServerSideRewind 호출해서 피격 판정 결과 얻기
 	FServerSideRewindResult Confirm = ServerSideRewind(HitCharacter, TraceStart, HitLocation, HitTime);
 
-	if (Character && HitCharacter && Confirm.bHitConfirmed)
+	if (Character && HitCharacter && Character->GetEquippedWeapon() && Confirm.bHitConfirmed)
 	{
+		const float Damage = Confirm.bHeadShot ? Character->GetEquippedWeapon()->GetHeadShotDamage() : Character->GetEquippedWeapon()->GetDamage();
+
 		UGameplayStatics::ApplyDamage(
 			HitCharacter,
-			Character->GetEquippedWeapon()->GetDamage(),
+			Damage,
 			Character->Controller,
 			Character->GetEquippedWeapon(),
 			UDamageType::StaticClass()
@@ -502,7 +504,7 @@ void ULagCompensationComponent::ShotgunServerScoreRequest_Implementation(const T
 	//피격 판정
 	FShotgunServerSideRewindResult Confirm = ShotgunServerSideRewind(HitCharacters, TraceStart, HitLocations, HitTime);
 
-	// 피격 판정 결과를 상세히 로그로 출력합니다.
+	// 피격 판정 결과를 상세히 로그로 출력.
 	if (Confirm.HeadShots.Num() > 0)
 	{
 		for (auto& HeadShotPair : Confirm.HeadShots)
@@ -548,7 +550,7 @@ void ULagCompensationComponent::ShotgunServerScoreRequest_Implementation(const T
 		//HeadShot처리
 		if (Confirm.HeadShots.Contains(HitCharacter))
 		{
-			float HeadShotDamage = Confirm.HeadShots[HitCharacter] * Character->GetEquippedWeapon()->GetDamage();
+			float HeadShotDamage = Confirm.HeadShots[HitCharacter] * HitCharacter->GetEquippedWeapon()->GetHeadShotDamage();
 			TotalDamage += HeadShotDamage;
 			UE_LOG(LogTemp, Warning, TEXT("[SERVER DEBUG] Calculated Headshot Damage for %s: %.2f"), *HitCharacter->GetName(), HeadShotDamage);
 		}
@@ -649,11 +651,13 @@ void ULagCompensationComponent::ProjectileServerScoreRequest_Implementation(ATPS
 {
 	FServerSideRewindResult Confirm = ProjectileServerSideRewind(HitCharacter, TraceStart, InitialVelocity, HitTime);
 
-	if (Character && HitCharacter && Confirm.bHitConfirmed)
+	if (Character && HitCharacter && Confirm.bHitConfirmed && Character->GetEquippedWeapon())
 	{
+		const float Damage = Confirm.bHeadShot ? Character->GetEquippedWeapon()->GetHeadShotDamage() : Character->GetEquippedWeapon()->GetDamage();
+
 		UGameplayStatics::ApplyDamage(
 			HitCharacter,
-			Character->GetEquippedWeapon()->GetDamage(),
+			Damage,
 			Character->Controller,
 			Character->GetEquippedWeapon(),
 			UDamageType::StaticClass()
