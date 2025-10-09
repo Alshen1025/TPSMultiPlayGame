@@ -123,6 +123,15 @@ void ATPSGameMode::EliminatePlayer(class ATPSCharacter* EliminatedCharacter, cla
 	{
 		EliminatedCharacter->Eliminated(false);
 	}
+	//월드 내에 있는 모든 플레이어 컨트롤러에 ElimAnnouncement를 표시
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		ATPSPlayerController* TPSPlayer = Cast<ATPSPlayerController>(*It);
+		if (TPSPlayer && AttackerPlayerState && VictimPlayerState)
+		{
+			TPSPlayer->BroadcastElim(AttackerPlayerState, VictimPlayerState);
+		}
+	}
 }
 
 void ATPSGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController* ElimmedController)

@@ -5,7 +5,10 @@
 #include "GameFramework/PlayerController.h"
 #include "CharacterOverlay.h"
 #include "Announcement.h"
-
+#include "ElimAnnouncement.h"
+#include "Components/HorizontalBox.h"
+#include "Blueprint/WidgetLayoutLibrary.h"
+#include "Components/CanvasPanelSlot.h"
 void ATPSHUD::BeginPlay()
 {
 	Super::BeginPlay();
@@ -28,6 +31,57 @@ void ATPSHUD::AddAnnouncement()
 	{
 		Announcement = CreateWidget<UAnnouncement>(PlayerContraller, AnnouncementClass);
 		Announcement->AddToViewport();
+	}
+}
+
+void ATPSHUD::AddElimAnnouncement(FString Attacker, FString Victim)
+{
+	OwnerPlayer = OwnerPlayer == nullptr ? GetOwningPlayerController() : OwnerPlayer;
+	if (OwnerPlayer && ElimAnnouncementClass)
+	{
+		UElimAnnouncement* ElimAnnouncementWidget = CreateWidget<UElimAnnouncement>(OwnerPlayer, ElimAnnouncementClass);
+		if (ElimAnnouncementWidget)
+		{
+			ElimAnnouncementWidget->SetElimAnnouncementText(Attacker, Victim);
+			ElimAnnouncementWidget->AddToViewport();
+
+			for (UElimAnnouncement* Msg : ElimMessages)
+			{
+				//메시지 표시
+				if (Msg && Msg->AnnouncementBox)
+				{
+					UCanvasPanelSlot* CanvasSlot = UWidgetLayoutLibrary::SlotAsCanvasSlot(Msg->AnnouncementBox);
+					if (CanvasSlot)
+					{
+						FVector2D Position = CanvasSlot->GetPosition();
+						FVector2D NewPosition(
+							CanvasSlot->GetPosition().X,
+							Position.Y - CanvasSlot->GetSize().Y
+						);
+						CanvasSlot->SetPosition(NewPosition);
+					}
+				}
+			}
+
+			ElimMessages.Add(ElimAnnouncementWidget);
+			FTimerHandle ElimMsgTimer;
+			FTimerDelegate ElimMsgDelegate;
+
+			ElimMsgDelegate.BindUFunction(this, FName("ElimAnnouncementTimerFinished"), ElimAnnouncementWidget);
+			GetWorldTimerManager().SetTimer(
+				ElimMsgTimer,
+				ElimMsgDelegate,
+				ElimAnnouncementTime,
+				false
+			);
+		}
+	}
+}
+void ATPSHUD::ElimAnnouncementTimerFinished(UElimAnnouncement* MsgToRemove)
+{
+	if (MsgToRemove)
+	{
+		MsgToRemove->RemoveFromParent();
 	}
 }
 
@@ -69,7 +123,6 @@ void ATPSHUD::DrawHUD()
 		}
 	}
 }
-
 void ATPSHUD::DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVector2D Spread, FLinearColor CrosshairsColor)
 {
 	const float TextureWidth = Texture->GetSizeX()/1.5f;
@@ -94,3 +147,4 @@ void ATPSHUD::DrawCrosshair(UTexture2D* Texture, FVector2D ViewportCenter, FVect
 		CrosshairsColor
 	);
 }
+

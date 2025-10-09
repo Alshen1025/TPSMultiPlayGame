@@ -39,7 +39,13 @@ public:
 
 	FHighPingDelegate HighPingDelegate;
 
+	//처치 알림
+	void BroadcastElim(APlayerState* Attacker, APlayerState* Victim);
+
 protected:
+
+	UFUNCTION(Client, Reliable)
+	void ClientElimAnnouncement(APlayerState* Attacker, APlayerState* Victim);
 	virtual void BeginPlay() override;
 	void SetHUDTime();
 
