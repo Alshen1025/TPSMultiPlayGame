@@ -4,11 +4,14 @@
 #include "TPSGameState.h"
 #include "Net/UnrealNetwork.h"
 #include "TPSMultiPlayGame/PlayerState/TPSPlayerState.h"
+#include "TPSMultiPlayGame/PlayerController/TPSPlayerController.h"
 
 void ATPSGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATPSGameState, TopScoringPlayers);
+	DOREPLIFETIME(ATPSGameState, RedTeamScore);
+	DOREPLIFETIME(ATPSGameState, BlueTeamScore);
 }
 
 void ATPSGameState::UpdateTopScore(ATPSPlayerState* ScoringPlayer)
@@ -33,5 +36,44 @@ void ATPSGameState::UpdateTopScore(ATPSPlayerState* ScoringPlayer)
 		TopScoringPlayers.Empty();
 		TopScoringPlayers.AddUnique(ScoringPlayer);
 		TopScore = ScoringPlayer->GetScore();
+	}
+}
+
+
+void ATPSGameState::OnRep_RedTeamScore()
+{
+	ATPSPlayerController* TPSPlayer = Cast<ATPSPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (TPSPlayer)
+	{
+		TPSPlayer->SetHUDRedTeamScore(RedTeamScore);
+	}
+}
+
+void ATPSGameState::OnRep_BlueTeamScore()
+{
+	ATPSPlayerController* TPSPlayer = Cast<ATPSPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (TPSPlayer)
+	{
+		TPSPlayer->SetHUDBlueTeamScore(BlueTeamScore);
+	}
+}
+
+void ATPSGameState::RedTeamScores()
+{
+	++RedTeamScore;
+	ATPSPlayerController* TPSPlayer = Cast<ATPSPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (TPSPlayer)
+	{
+		TPSPlayer->SetHUDRedTeamScore(RedTeamScore);
+	}
+}
+
+void ATPSGameState::BlueTeamScores()
+{
+	++BlueTeamScore;
+	ATPSPlayerController* TPSPlayer = Cast<ATPSPlayerController>(GetWorld()->GetFirstPlayerController());
+	if (TPSPlayer)
+	{
+		TPSPlayer->SetHUDBlueTeamScore(BlueTeamScore);
 	}
 }

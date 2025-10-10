@@ -3,6 +3,7 @@
 
 #include "HUD/OverheadWidget.h"
 #include "Components/TextBlock.h"
+#include "TPSMultiPlayGame/PlayerState/TPSPlayerState.h"
 
 void UOverheadWidget::SetDisplayText(FString TextToDispaly)
 {
@@ -12,31 +13,12 @@ void UOverheadWidget::SetDisplayText(FString TextToDispaly)
 	}
 }
 
-void UOverheadWidget::SetPlayerNetRole(APawn* InPawn)
+void UOverheadWidget::SetPlayerName(FString PlayerName)
 {
-	ENetRole LocalRole = InPawn->GetLocalRole();
-	FString Role;
-	switch (LocalRole)
-	{
-	case ENetRole::ROLE_None:
-		Role = FString("None");
-		break;
-	case ENetRole::ROLE_SimulatedProxy:
-		Role = FString("SimulatedProxy");
-		break;
-	case ENetRole::ROLE_AutonomousProxy:
-		Role = FString("AutonomousProxy");
-		break;
-	case ENetRole::ROLE_Authority:
-		Role = FString("Authority");
-		break;
-	}
-	FString LocalRoleString = FString::Printf(TEXT("Local Role: %s"), *Role);
-	SetDisplayText(LocalRoleString);
+   SetDisplayText(PlayerName);
 }
 
-void UOverheadWidget::NativeDestruct()
+void UOverheadWidget::SetDisplayColor(const FLinearColor& Color)
 {
-	RemoveFromParent();
-	Super::NativeDestruct();
+    DisplayText->SetColorAndOpacity(FSlateColor(Color));
 }

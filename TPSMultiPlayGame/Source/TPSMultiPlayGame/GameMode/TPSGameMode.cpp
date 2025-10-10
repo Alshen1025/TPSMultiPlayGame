@@ -71,7 +71,7 @@ void ATPSGameMode::OnMatchStateSet()
 		ATPSPlayerController* TPSCharacter = Cast<ATPSPlayerController>(*It);
 		if (TPSCharacter)
 		{
-			TPSCharacter->OnMatchStateSet(MatchState);
+			TPSCharacter->OnMatchStateSet(MatchState, bTeamMatch);
 		}
 	}
 }
@@ -148,6 +148,13 @@ void ATPSGameMode::RequestRespawn(ACharacter* ElimmedCharacter, AController* Eli
 		int32 Selection = FMath::RandRange(0, PlayerStarts.Num() - 1);
 		RestartPlayerAtPlayerStart(ElimmedController, PlayerStarts[Selection]);
 	}
+}
+
+//TeamGameMode가 아니면 받은 데미지 그대로 반환.
+//TeamGameMode에서 아군 식별 코드 추가
+float ATPSGameMode::CalculateDamage(AController* Attacker, AController* Victim, float BaseDamage)
+{
+	return BaseDamage;
 }
 
 void ATPSGameMode::PlayerLeftGame(ATPSPlayerState* PlayerLeaving)

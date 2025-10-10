@@ -22,8 +22,9 @@ public:
 	void SetDisplayText(FString TextToDispaly);
 
 	UFUNCTION(BlueprintCallable)
-	void SetPlayerNetRole(APawn* InPawn);
+	void SetPlayerName(FString PlayerName);
+	void SetDisplayColor(const FLinearColor& Color);
 
 protected:
-	virtual void NativeDestruct() override;
+	//virtual void NativeDestruct() override;
 };

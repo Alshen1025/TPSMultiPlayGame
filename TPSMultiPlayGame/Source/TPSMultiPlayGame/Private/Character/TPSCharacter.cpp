@@ -26,6 +26,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "TPSMultiPlayGame/GameState/TPSGameState.h"
+#include "TPSMultiPlayGame/Public/HUD/OverheadWidget.h"
 
 // Sets default values
 ATPSCharacter::ATPSCharacter()
@@ -45,6 +46,10 @@ ATPSCharacter::ATPSCharacter()
 
 	OverheadWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("OvergeadWidget"));
 	OverheadWidget->SetupAttachment(RootComponent);
+	OverheadWidget->SetRelativeLocation(FVector(0.f, 0.f, 110.f));
+	OverheadWidget->SetWidgetSpace(EWidgetSpace::Screen);
+	OverheadWidget->SetVisibility(true);
+	
 
 	//Combat컴포넌트
 	Combat = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
@@ -180,6 +185,34 @@ void ATPSCharacter::HideCameraIfCharacterClose()
 }
 
 
+void ATPSCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+	TrySetupPlayerInfo();
+	
+}
+
+void ATPSCharacter::TrySetupPlayerInfo()
+{
+	ATPSPlayerState* CurrentPlayerState = GetPlayerState<ATPSPlayerState>();
+
+	// 조건: PlayerState 유효, PlayerName 비어있지 않음, UserWidgetObject 유효
+	if (CurrentPlayerState && !CurrentPlayerState->GetPlayerName().IsEmpty() && OverheadWidget && OverheadWidget->GetUserWidgetObject())
+	{
+		UpdatePlayerName();
+		UpdateTeamColor();
+		OverheadWidget->SetVisibility(true);
+		GetWorldTimerManager().ClearTimer(SetupPlayerInfoTimer);
+	}
+	else
+	{
+		if (!GetWorldTimerManager().IsTimerActive(SetupPlayerInfoTimer))
+		{
+			GetWorldTimerManager().SetTimer(SetupPlayerInfoTimer, this, &ATPSCharacter::TrySetupPlayerInfo, 0.1f);
+		}
+	}
+}
+
 void ATPSCharacter::PoolInit()
 {
 	if (TPSPlayerState == nullptr)
@@ -248,7 +281,6 @@ void ATPSCharacter::RotateInPlace(float DeltaTime)
 		CalculateAO_Pitch();
 	}
 }
-
 
 void ATPSCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -690,6 +722,8 @@ void ATPSCharacter::OnRep_Health(float LastHealth)
 
 void ATPSCharacter::ReciveDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatorController, AActor* DamageCauser)
 {
+	TPSGameMode = TPSGameMode == nullptr ? GetWorld()->GetAuthGameMode<ATPSGameMode>() : TPSGameMode;
+	Damage = TPSGameMode->CalculateDamage(InstigatorController, Controller, Damage);
 	//체력계산 - 실드 적용
 	float DamageToHealth = Damage;
 	if (Shield > 0.f)
@@ -717,7 +751,6 @@ void ATPSCharacter::ReciveDamage(AActor* DamagedActor, float Damage, const UDama
 	}
 	if (Health <= 0.f)
 	{
-		ATPSGameMode* TPSGameMode = GetWorld()->GetAuthGameMode<ATPSGameMode>();
 		if (TPSGameMode)
 		{
 			TPSPlayerController = TPSPlayerController == nullptr ? Cast<ATPSPlayerController>(Controller) : TPSPlayerController;
@@ -774,10 +807,9 @@ void ATPSCharacter::MulticastLostTheLead_Implementation()
 	}
 }
 
-
 void ATPSCharacter::ServerLeaveGame_Implementation()
 {
-	ATPSGameMode* TPSGameMode = GetWorld()->GetAuthGameMode<ATPSGameMode>();
+	TPSGameMode = TPSGameMode == nullptr ? GetWorld()->GetAuthGameMode<ATPSGameMode>() : TPSGameMode;
 	TPSPlayerState = TPSPlayerState == nullptr ? GetPlayerState<ATPSPlayerState>() : TPSPlayerState;
 	if (TPSGameMode && TPSPlayerState)
 	{
@@ -832,6 +864,7 @@ void ATPSCharacter::MulticastEliminated_Implementation(bool bPlayerLeftGame)
 		&ATPSCharacter::ElimTimerFinishied,
 		ElimDelay
 	);
+	OverheadWidget->SetVisibility(false);
 }
 
 void ATPSCharacter::PlayDeathMontage()
@@ -851,9 +884,63 @@ void ATPSCharacter::Eliminated(bool bPlayerLeftGame)
 	MulticastEliminated(bPlayerLeftGame);
 }
 
+void ATPSCharacter::SetTeamColor(ETeam Team)
+{
+	if (OverheadWidget)
+	{
+		UOverheadWidget* Overhead = Cast<UOverheadWidget>(OverheadWidget->GetUserWidgetObject());
+		if (Overhead && GetPlayerState())
+		{
+			switch (Team)
+			{
+			case ETeam::ET_NoTeam:
+				Overhead->SetDisplayColor(FLinearColor::White);
+				break;
+			case ETeam::ET_BlueTeam:
+				Overhead->SetDisplayColor(FLinearColor::Blue);
+				break;
+			case ETeam::ET_RedTeam:
+				Overhead->SetDisplayColor(FLinearColor::Red);
+				break;
+			}
+			
+		}
+	}
+}
+
+void ATPSCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+	TrySetupPlayerInfo();
+}
+
+void ATPSCharacter::UpdateTeamColor()
+{
+	ATPSPlayerState* CurrentPlayerState = GetPlayerState<ATPSPlayerState>();
+	if (CurrentPlayerState)
+	{
+		SetTeamColor(CurrentPlayerState->GetTeam());
+	}
+}
+
+void ATPSCharacter::UpdatePlayerName()
+{
+	if (OverheadWidget)
+	{
+		UOverheadWidget* Overhead = Cast<UOverheadWidget>(OverheadWidget->GetUserWidgetObject());
+		ATPSPlayerState* CurrentPlayerState = GetPlayerState<ATPSPlayerState>();
+		if (Overhead && CurrentPlayerState)
+		{
+			FString PlayerName = CurrentPlayerState->GetPlayerName();
+			Overhead->SetPlayerName(PlayerName);
+		}
+	}
+}
+
+
 void ATPSCharacter::ElimTimerFinishied()
 {
-	ATPSGameMode* TPSGameMode = GetWorld()->GetAuthGameMode<ATPSGameMode>();
+	TPSGameMode = TPSGameMode == nullptr ? GetWorld()->GetAuthGameMode<ATPSGameMode>() : TPSGameMode;
 	if (TPSGameMode && !bLeftGame) //게임이 종료되지 않았다면
 	{
 		TPSGameMode->RequestRespawn(this, Controller);

@@ -7,6 +7,7 @@
 #include "TPSMultiPlayGame/TPSTypes/TruningInPlace.h"
 #include "TPSMultiPlayGame/Interfaces/InteractWithCrosshairsInterface.h"
 #include "TPSMultiPlayGame/TPSTypes/Combatstate.h"
+#include "TPSMultiPlayGame/TPSTypes/Team.h"
 #include "InputActionValue.h"
 #include "TPSCharacter.generated.h"
 
@@ -48,8 +49,6 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void ShowSniperScopeWidget(bool bShowScope);
 
-
-
 	void UpdateHUDHealth();
 	void UpdateHUDShield();
 
@@ -61,6 +60,12 @@ public:
 
 	UFUNCTION(NetMulticast, Reliable)
 	void MulticastLostTheLead();
+
+	virtual void PossessedBy(AController* NewController) override;
+
+	FTimerHandle SetupPlayerInfoTimer;
+
+	void TrySetupPlayerInfo();
 
 protected:
 	//관련 클래스 확인 후 HUD 초기화
@@ -194,7 +199,8 @@ private:
 	ETurningInPlace TurningInPlace;
 	void TurnInPlace(float DeltaTime);
 
-
+	UPROPERTY()
+	class ATPSGameMode* TPSGameMode;
 
 
 //애니메이션 몽타주
@@ -259,8 +265,17 @@ public:
 	void Eliminated(bool bPlayerLeftGame);
 
 public:
-	UPROPERTY()
+	void SetTeamColor(ETeam Team);
+
+	UPROPERTY(ReplicatedUsing = OnRep_PlayerState)
 	ATPSPlayerState* TPSPlayerState;
+
+
+	virtual void OnRep_PlayerState() override;
+
+	// 팀 색상을 업데이트하는 헬퍼 함수
+	void UpdateTeamColor();
+	void UpdatePlayerName();
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (AllowPrivateAceess = "true"))
 	class UWidgetComponent* OverheadWidget;

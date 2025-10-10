@@ -55,4 +55,11 @@ public:
 	//Transient-> 저장이 필요 없는 데이터를 표시할 때 사용
 	UPROPERTY(meta = (BindWidgetAnim), Transient)
 	UWidgetAnimation* HighPingAnimation;
+
+	//
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* BlueTeamScore;
+
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* RedTeamScore;
 };

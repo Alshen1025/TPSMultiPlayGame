@@ -25,6 +25,8 @@ public:
 	virtual void EliminatePlayer(class ATPSCharacter* EliminatedCharacter, class ATPSPlayerController* VictimController, ATPSPlayerController* AttackerController);
 	virtual void RequestRespawn(class ACharacter* ElimmedCharacter, AController* ElimmedController);
 
+	virtual float CalculateDamage(AController* Attacker, AController* Victim, float BaseDamage);
+
 	//GameState관련
 	//Warmup상태에서 일정 시간이 지난 후 게임 시작
 	UPROPERTY(EditDefaultsOnly)
@@ -39,6 +41,9 @@ public:
 	//게임 종료 후 대기시간
 	UPROPERTY(EditDefaultsOnly)
 	float CooldownTime = 10.0f;
+
+	bool bTeamMatch = false;
+
 	FORCEINLINE float GetCountdownTime() const {return CountdownTime;}
 
 	void PlayerLeftGame(class ATPSPlayerState* PlayerLeaving);

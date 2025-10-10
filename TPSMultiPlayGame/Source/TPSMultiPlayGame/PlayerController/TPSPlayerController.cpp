@@ -19,12 +19,86 @@
 #include "InputActionValue.h"
 #include "Components/Image.h"
 #include "TPSMultiPlayGame/HUD/ReturnToMainMenu.h"
+#include "Components/WidgetComponent.h"
+#include "TPSMultiPlayGame/TPSTypes/Announcement.h"
 
 //처치 메시지 알림
 void ATPSPlayerController::BroadcastElim(APlayerState* Attacker, APlayerState* Victim)
 {
 	ClientElimAnnouncement(Attacker, Victim);
 }
+
+void ATPSPlayerController::HideTeamScores()
+{
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
+
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->RedTeamScore &&
+		TPSHUD->CharacterOverlay->BlueTeamScore;
+	if (bHUDValid)
+	{
+		TPSHUD->CharacterOverlay->RedTeamScore->SetText(FText());
+		TPSHUD->CharacterOverlay->BlueTeamScore->SetText(FText());
+	}
+}
+
+void ATPSPlayerController::InitTeamScores()
+{
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
+
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->RedTeamScore &&
+		TPSHUD->CharacterOverlay->BlueTeamScore;
+	if (bHUDValid)
+	{
+		FString Zero("0");
+		TPSHUD->CharacterOverlay->RedTeamScore->SetText(FText::FromString(Zero));
+		TPSHUD->CharacterOverlay->BlueTeamScore->SetText(FText::FromString(Zero));
+	}
+}
+
+void ATPSPlayerController::SetHUDRedTeamScore(int32 RedScore)
+{
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
+
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->RedTeamScore;
+	if (bHUDValid)
+	{
+		FString ScoreText = FString::Printf(TEXT("%d"), RedScore);;
+		TPSHUD->CharacterOverlay->RedTeamScore->SetText(FText::FromString(ScoreText));
+	}
+}
+
+void ATPSPlayerController::SetHUDBlueTeamScore(int32 BlueScore)
+{
+	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
+
+	bool bHUDValid = TPSHUD &&
+		TPSHUD->CharacterOverlay &&
+		TPSHUD->CharacterOverlay->BlueTeamScore;
+	if (bHUDValid)
+	{
+		FString ScoreText = FString::Printf(TEXT("%d"), BlueScore);;
+		TPSHUD->CharacterOverlay->BlueTeamScore->SetText(FText::FromString(ScoreText));
+	}
+}
+
+void ATPSPlayerController::OnRep_ShowTeamScores()
+{
+	if (bShowTeamScores)
+	{
+		InitTeamScores();
+	}
+	else
+	{
+		HideTeamScores();
+	}
+}
+
 
 void ATPSPlayerController::ClientElimAnnouncement_Implementation(APlayerState* Attacker, APlayerState* Victim)
 {
@@ -125,6 +199,7 @@ void ATPSPlayerController::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>&
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	DOREPLIFETIME(ATPSPlayerController, MatchState);
+	DOREPLIFETIME(ATPSPlayerController, bShowTeamScores);
 }
 void ATPSPlayerController::CheckTimeSync(float DeltaTime)
 {
@@ -291,12 +366,12 @@ void ATPSPlayerController::ServerRequestServerTime_Implementation(float TimeOfCl
 }
 
 //게임 Match State
-void  ATPSPlayerController::OnMatchStateSet(FName State)
+void  ATPSPlayerController::OnMatchStateSet(FName State, bool bTeamMatch)
 {
 	MatchState = State;
 	if (MatchState == MatchState::InProgress)
 	{
-		HandleMatchHasStarted();
+		HandleMatchHasStarted(bTeamMatch);
 	}
 	else if (MatchState == MatchState::Cooldown)
 	{
@@ -304,8 +379,9 @@ void  ATPSPlayerController::OnMatchStateSet(FName State)
 	}
 }
 
-void  ATPSPlayerController::HandleMatchHasStarted()
+void  ATPSPlayerController::HandleMatchHasStarted(bool bTeamMatch)
 {
+	if(HasAuthority()) bShowTeamScores = bTeamMatch;
 	TPSHUD = TPSHUD == nullptr ? Cast<ATPSHUD>(GetHUD()) : TPSHUD;
 	if (TPSHUD && TPSHUD->CharacterOverlay == nullptr)
 	{
@@ -313,6 +389,15 @@ void  ATPSPlayerController::HandleMatchHasStarted()
 		if (TPSHUD->Announcement && TPSHUD->Announcement->IsInViewport())
 		{
 			TPSHUD->Announcement->SetVisibility(ESlateVisibility::Hidden);
+		}
+		if (!HasAuthority()) return;
+		if (bTeamMatch)
+		{
+			InitTeamScores();
+		}
+		else
+		{
+			HideTeamScores();
 		}
 	}
 }
@@ -331,8 +416,8 @@ void ATPSPlayerController::HandleCooldown()
 			//Announcement 다시 생성 -> 남은 Cooldown시간 안내를 위해
 			TPSHUD->Announcement->SetVisibility(ESlateVisibility::Visible);
 			//Text변경
-			FString AnnounceText("New Match Starts In:");
-			TPSHUD->Announcement->AnnouncementText->SetText(FText::FromString(AnnounceText));
+			FString AnnouncementText = Announcement::NewMatchStartsIn;
+			TPSHUD->Announcement->AnnouncementText->SetText(FText::FromString(AnnouncementText));
 
 			ATPSGameState* TPSGameState = Cast<ATPSGameState>(UGameplayStatics::GetGameState(this));
 			ATPSPlayerState* TPSPlayerState = GetPlayerState<ATPSPlayerState>();
@@ -340,35 +425,9 @@ void ATPSPlayerController::HandleCooldown()
 			if (TPSGameState && TPSPlayerState)
 			{
 				TArray<ATPSPlayerState*> TopPlayers = TPSGameState->TopScoringPlayers;
-				FString InfoText;
-				if (TopPlayers.Num() == 0)
-				{
-					InfoText = FString("Draw...");
-				}
-				//최고 점수자가 1명이고 그게 본인일 때
-				else if (TopPlayers.Num() == 1 && TopPlayers[0] == TPSPlayerState)
-				{
-					InfoText = FString("You are the champion!");
-				}
-				//승자가 본인이 아닐 때
-				else if (TopPlayers.Num() == 1)
-				{
-					InfoText = FString::Printf(TEXT("Champion \n%s"), *TopPlayers[0]->GetPlayerName());
-				}
-				//승자가 여러명 일 때
-				else if (TopPlayers.Num() > 1)
-				{
-					InfoText = FString("Players tied for the win:\n");
-					//TopPlayers 순회
-					for (auto TiedPlayer : TopPlayers)
-					{
-						InfoText.Append(FString::Printf(TEXT("%s\n"), *TiedPlayer->GetPlayerName()));
-					}
-				}
-				TPSHUD->Announcement->InfoText->SetText(FText::FromString(InfoText));
+				FString InfoTextString = bShowTeamScores ? GetTeamsInfoText(TPSGameState) : GetInfoText(TopPlayers);
+				TPSHUD->Announcement->InfoText->SetText(FText::FromString(InfoTextString));
 			}
-
-			
 		}
 	}
 	ATPSCharacter* TPSCharacter = Cast<ATPSCharacter>(GetPawn());
@@ -537,6 +596,9 @@ void ATPSPlayerController::OnPossess(APawn* InPawn)
 	if (TPSCharacter)
 	{
 		SetHUDHealth(TPSCharacter->GetHealth(), TPSCharacter->GetMaxHealth());
+		TPSCharacter->OverheadWidget->SetVisibility(true);
+		TPSCharacter->UpdatePlayerName();
+		TPSCharacter->UpdateTeamColor();
 	}
 }
 
@@ -583,4 +645,73 @@ void ATPSPlayerController::SetHUDAnnouncementCountdown(float CountdownTime)
 		FString CountdownText = FString::Printf(TEXT("%02d:%02d"), Minutes, Seconds);
 		TPSHUD->Announcement->WarmupTime->SetText(FText::FromString(CountdownText));
 	}
+}
+
+
+FString ATPSPlayerController::GetInfoText(const TArray<class ATPSPlayerState*>& Players)
+{
+	ATPSPlayerState* TPSPlayerState = GetPlayerState<ATPSPlayerState>();
+	if (TPSPlayerState == nullptr) return FString();
+	FString InfoTextString;
+	if (Players.Num() == 0)
+	{
+		InfoTextString = Announcement::ThereIsNoWinner;
+	}
+	else if (Players.Num() == 1 && Players[0] == TPSPlayerState)
+	{
+		InfoTextString = Announcement::YouAreTheWinner;
+	}
+	else if (Players.Num() == 1)
+	{
+		InfoTextString = FString::Printf(TEXT("Winner: \n%s"), *Players[0]->GetPlayerName());
+	}
+	else if (Players.Num() > 1)
+	{
+		InfoTextString = Announcement::PlayersTiedForTheWin;
+		InfoTextString.Append(FString("\n"));
+		for (auto TiedPlayer : Players)
+		{
+			InfoTextString.Append(FString::Printf(TEXT("%s\n"), *TiedPlayer->GetPlayerName()));
+		}
+	}
+
+	return InfoTextString;
+}
+
+FString ATPSPlayerController::GetTeamsInfoText(ATPSGameState* TPSGameState)
+{
+	if (TPSGameState == nullptr) return FString();
+	FString InfoTextString;
+
+	const int32 RedTeamScore = TPSGameState->RedTeamScore;
+	const int32 BlueTeamScore = TPSGameState->BlueTeamScore;
+
+	if (RedTeamScore == 0 && BlueTeamScore == 0)
+	{
+		InfoTextString = Announcement::ThereIsNoWinner;
+	}
+	else if (RedTeamScore == BlueTeamScore)
+	{
+		InfoTextString = FString::Printf(TEXT("%s\n"), *Announcement::TeamsTiedForTheWin);
+		InfoTextString.Append(Announcement::RedTeam);
+		InfoTextString.Append(TEXT("\n"));
+		InfoTextString.Append(Announcement::BlueTeam);
+		InfoTextString.Append(TEXT("\n"));
+	}
+	else if (RedTeamScore > BlueTeamScore)
+	{
+		InfoTextString = Announcement::RedTeamWins;
+		InfoTextString.Append(TEXT("\n"));
+		InfoTextString.Append(FString::Printf(TEXT("%s: %d\n"), *Announcement::RedTeam, RedTeamScore));
+		InfoTextString.Append(FString::Printf(TEXT("%s: %d\n"), *Announcement::BlueTeam, BlueTeamScore));
+	}
+	else if (BlueTeamScore > RedTeamScore)
+	{
+		InfoTextString = Announcement::BlueTeamWins;
+		InfoTextString.Append(TEXT("\n"));
+		InfoTextString.Append(FString::Printf(TEXT("%s: %d\n"), *Announcement::BlueTeam, BlueTeamScore));
+		InfoTextString.Append(FString::Printf(TEXT("%s: %d\n"), *Announcement::RedTeam, RedTeamScore));
+	}
+
+	return InfoTextString;
 }

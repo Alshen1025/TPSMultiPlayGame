@@ -42,6 +42,22 @@ public:
 	//처치 알림
 	void BroadcastElim(APlayerState* Attacker, APlayerState* Victim);
 
+
+	//TeamScore
+	void HideTeamScores();
+	void InitTeamScores();
+	void SetHUDRedTeamScore(int32 RedScore);
+	void SetHUDBlueTeamScore(int32 BlueScore);
+
+	UPROPERTY(ReplicatedUsing = OnRep_ShowTeamScores)
+	bool bShowTeamScores = false;
+
+	UFUNCTION()
+	void OnRep_ShowTeamScores();
+
+	FString GetInfoText(const TArray<class ATPSPlayerState*>& Players);
+	FString GetTeamsInfoText(class ATPSGameState* TPSGameState);
+
 protected:
 
 	UFUNCTION(Client, Reliable)
@@ -111,10 +127,10 @@ public:
 	
 	virtual float GetServerTime(); //서버의 시간으로 동기화
 	virtual void ReceivedPlayer() override;  //가능한 한 빠리 서버 시계와 동기화
-	void OnMatchStateSet(FName State); //Match State설정
+	void OnMatchStateSet(FName State, bool bTeamMatch = false); //Match State설정
 
 	//매치 시작
-	void HandleMatchHasStarted();
+	void HandleMatchHasStarted(bool bTeamMatch = false);
 	//매치 종료
 	void HandleCooldown();
 
