@@ -82,6 +82,12 @@ Plugins/**/Intermediate/*
 # Cache files for the editor to use
 DerivedDataCache/*
 
+# Unreal Engine generated directories at any project or plugin depth
+**/Binaries/
+**/DerivedDataCache/
+**/Intermediate/
+**/Saved/
+
 # Ignore Unreal Engine config
 Config/DefaultEngine.ini
 MenuSystem/Saved/
